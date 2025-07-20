@@ -29,7 +29,7 @@ class MenuHandler(val target: Field) {
             |5: Settings
             |> """.trimMargin())
         val opt = readln()
-        if (!validateOpt(opt, 1, 4)) return null
+        if (!validateOpt(opt, 1, 5)) return null
         val option = opt.toInt()
         when (option) {
             1 -> target.menu = Menus.FIGHT
@@ -90,7 +90,7 @@ class MenuHandler(val target: Field) {
                 return false }
             in disallowed -> println("You cannot choose that move. Choose another one.").also { return false }
             9 -> this.target.menu = Menus.MAIN
-            else -> { selected.useMove(this.target, this.target.opp.getSelected(), option-1)
+            else -> { selected.useMove(this.target.opp.getSelected(), option-1)
                 this.target.menu = Menus.MAIN
                 return true }
         }
@@ -108,18 +108,48 @@ class MenuHandler(val target: Field) {
         if (!this.validateOpt(option, 1, target.you.team.size, listOf(7, 8))) return null
         val opt: Int = option.toInt()
         when (opt) {
-            in 1..target.you.team.size -> println(target.you.team[opt-1]).also { print("Enter to continue..."); readln() }
-            7 -> println(target.opp.getSelected()).also { print("Enter to continue..."); readln() }
+            in 1..target.you.team.size -> println(target.you.team[opt-1].baseInfoAsString()).also { print("Enter to continue..."); readln() }
+            7 -> println(target.opp.getSelected().baseInfoAsString()).also { print("Enter to continue..."); readln() }
             8 -> target.menu = Menus.MAIN
         }
         return false
     }
 
     fun settingsMenuHandler(): Boolean? {
-        TODO()
+        print("""Change settings:
+            |1. Verbosity: ${if (verbose) "On" else "Off"}
+            |9. Back
+            |> 
+        """.trimMargin())
+        val option: String = readln()
+        if (!this.validateOpt(option, 1, 1, listOf(9))) return null
+        val opt: Int = option.toInt()
+        when (opt) {
+            1 -> this.target.menu = Menus.SETTINGS_VERBOSITY
+            9 -> this.target.menu = Menus.MAIN
+        }
+        return false
+    }
+
+    fun settingsVerbosityHandler(): Boolean? {
+        print("""Change verbosity:
+            |1. On      2. Off
+            |3. Back
+            |> 
+        """.trimMargin())
+        val option: String = readln()
+        if (!this.validateOpt(option, 1, 3)) return null
+        val opt: Int = option.toInt()
+        when (opt) {
+            1 -> verbose = true
+            2 -> verbose = false
+            3 -> {}
+        }
+        this.target.menu = Menus.SETTINGS
+        return false
     }
 }
 
 enum class Menus(val fullname: String) {
-    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu")
+    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu"), SETTINGS_VERBOSITY("Verbosity Settings Menu")
 }

@@ -15,9 +15,9 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
     fun swap(to: Int) {
         if (to > this.team.lastIndex || this.team[to].faint) throw IllegalArgumentException("Attempted to access fainted pokemon or out of bounds value: $to")
         this.getSelected().clearVolatileStatuses()
-        this.getSelected().deregister(this.field)
+        this.getSelected().deregister()
         this.selected = to
-        this.getSelected().register(this.field)
+        this.getSelected().register()
     }
     /**Derement the timers of all volatile statuses in this player's team by one, and remove them if they reach 0.*/
     fun decrementVolatileStatuses() {
@@ -68,7 +68,7 @@ object Field {
     lateinit var opp: Player
     /** A list of lists containing `AuditWrapper` objects. Audits go through priority levels of the list successively, invoking the functions of `AuditWrapper`s with specified audit events. Higher priority levels are higher numbers. Starts at priority 0.*/
     var audits: MutableList<MutableList<AuditWrapper>> = mutableListOf()
-    private val menuHandlerMap: Map<Menus, menuHandlerFunc> = mapOf(Menus.MAIN to this.menuHandler::mainMenuHandler, Menus.SWAP to this.menuHandler::swapMenuHandler, Menus.FIGHT to this.menuHandler::fightMenuHandler, Menus.INFO to this.menuHandler::infoMenuHandler, Menus.SETTINGS to this.menuHandler::settingsMenuHandler)
+    private val menuHandlerMap: Map<Menus, menuHandlerFunc> = mapOf(Menus.MAIN to this.menuHandler::mainMenuHandler, Menus.SWAP to this.menuHandler::swapMenuHandler, Menus.FIGHT to this.menuHandler::fightMenuHandler, Menus.INFO to this.menuHandler::infoMenuHandler, Menus.SETTINGS to this.menuHandler::settingsMenuHandler, Menus.SETTINGS_VERBOSITY to this.menuHandler::settingsVerbosityHandler)
 
     /**Handles everything that needs to be done at the end of the turn.*/
     fun endOfTurn() {

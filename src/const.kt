@@ -64,7 +64,7 @@ enum class NonVolatileStatus(val fullname: String, val immune: List<Type> = list
 }
 
 /**Represents volatile statuses. These are not displayed and are cleared by switching out.*/
-enum class VolatileStatus(val fullname: String)
+enum class VolatileStatus(val fullname: String, val info: List<AuditInfo>)
 
 /**Represents weather conditions.*/
 enum class Weather(val fullname: String, val effects: List<AuditWrapper> = listOf()) {
@@ -122,7 +122,7 @@ fun kotlin.random.Random.randLessOrEqualDouble(lessThanOrEqual: Double, max: Dou
     return (this.nextDouble(min, max) <= lessThanOrEqual)
 }
 
-var verbose:Boolean = false
+var verbose: Boolean = false
 fun log(message: String) {
     if (verbose) println(message)
 }

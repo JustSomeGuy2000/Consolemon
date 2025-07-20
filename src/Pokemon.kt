@@ -7,7 +7,7 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
 
     private var statboosts: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0, Stat.CRTDMG to 0, Stat.CRTRTE to 0, Stat.ACC to 0, Stat.EVA to 0)
 
-    var item: HeldItem? = null
+    private var item: Pair<HeldItem, List<AuditWrapper>>? = null
     var level: Int = 100
     var exp: Int = 0
     val EVs: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0)
@@ -73,7 +73,7 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
     }
 
     /**Returns a prettified string of text containing the Pokemon's information, meant to be printed.*/
-    override fun toString(): String {
+    fun baseInfoAsString(): String {
         var text: String = "\nName: $name${this.nonVolatileStatus?.name ?: ""}\n\nBase Stats (Boost Level):\n"
         for (stat in Stat.entries) {
             text += "${stat.fullname}: ${if (stat == Stat.HP) "${this.currentHealth}/" else ""}${this.stats[stat]!!} (${if (this.statboosts[stat]!! < 0) "-" else ""}${this.statboosts[stat]})\n"
@@ -179,19 +179,39 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
         return "${this.currentHealth}/${this.stats[Stat.HP]}"
     }
 
+    fun getItemInfo(): Pair<HeldItem, List<AuditWrapper>>? {
+        return this.item
+    }
+    fun setItem(to: HeldItem?) {
+        if (this.item != null) {
+            for (wrap in this.item!!.second) {
+                this.targetField?.removeAuditResponder(wrap, false)
+                this.targetField?.cleanAuditList()
+            }
+        }
+        if (to != null) {
+            this.item = Pair(to, to.info.map { AuditWrapper(it, this, to) })
+            for (wrap in this.item!!.second) {
+                this.targetField?.addAuditResponder(wrap)
+            }
+        } else {
+            this.item = null
+        }
+    }
+
     /**Registers all of this's audit responders to the field. Registers: ability, item, volatile statuses, moves.*/
-    fun register(field: Field) {
+    fun register() {
         TODO()
     }
     /**Removes all of this's audit responders from the field's audit list Deregisters: ability, item, volatile statuses, moves.*/
-    fun deregister(field: Field) {
+    fun deregister() {
         TODO()
     }
 
-    fun useMove(field: Field, opp: Pokemon, moveNumber: Int) {
+    fun useMove(opp: Pokemon, moveNumber: Int) {
         val move = this.moves[moveNumber]
         println("${this.name} used ${move.name}!")
-        val dmg = field.dmgcalc(this, opp, move)
+        val dmg = this.targetField!!.dmgcalc(this, opp, move)
         move.currentpp -= 1
         if (move.currentpp == 0) move.disabled = true
         opp.dealDamage(dmg)
