@@ -1,0 +1,2 @@
+# Consolemon
+A Pokemon battle simulator written in Kotlin, conaitned entirely within the console. Support is planned for every aspect of Pokemon battles, eventually. All moves, pokemon, abilites, items, etc. follow gen IX specifications, except if the do not exist in gen IX. In that case, they are based on the last generation where they are found. Note that the intricacies of the system may not exactly match the games, but overall it is a faithful adaptation.
