@@ -2,7 +2,16 @@ package jehr.experiments.pkmnbatsim3
 
 import kotlin.random.Random.Default as rng
 
-class Move(val name: String, val power: Int, val acc: Int, val type: Type, val movetype: MoveType, val contact: Boolean, val maxpp: Int, val desc: String, val side: ((Field, Pokemon, Pokemon) -> Unit) = ::doNothing, val audits: List<AuditInfo> = listOf(), val priority: Int = 0) {
+class Move(val name: String,
+           val power: Int,
+           val acc: Int,
+           val type: Type,
+           val movetype: MoveType,
+           val contact: Boolean,
+           val maxpp: Int,
+           val desc: String,
+           val side: ((Field, Pokemon, Pokemon) -> Unit) = ::doNothing, val audits: List<AuditInfo> = listOf(),
+           val priority: Int = 0) {
     var disabled: Boolean = false
     var currentpp: Int = listOf(maxpp)[0] // copy maxpp value
     /**Returns a prettified string of text, meant to be printed.*/

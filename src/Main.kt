@@ -9,6 +9,7 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
         for (poke in team) {
             this.team.add(poke.value.copy(targetField = this.field))
         }
+        this.swap(selected)
     }
 
     /** Swap the current Pokemon with another from the team. Use position in team as argument.*/
@@ -68,7 +69,7 @@ object Field {
     lateinit var opp: Player
     /** A list of lists containing `AuditWrapper` objects. Audits go through priority levels of the list successively, invoking the functions of `AuditWrapper`s with specified audit events. Higher priority levels are higher numbers. Starts at priority 0.*/
     var audits: MutableList<MutableList<AuditWrapper>> = mutableListOf()
-    private val menuHandlerMap: Map<Menus, menuHandlerFunc> = mapOf(Menus.MAIN to this.menuHandler::mainMenuHandler, Menus.SWAP to this.menuHandler::swapMenuHandler, Menus.FIGHT to this.menuHandler::fightMenuHandler, Menus.INFO to this.menuHandler::infoMenuHandler, Menus.SETTINGS to this.menuHandler::settingsMenuHandler, Menus.SETTINGS_VERBOSITY to this.menuHandler::settingsVerbosityHandler)
+    private val menuHandlerMap: Map<Menus, menuHandlerFunc> = mapOf(Menus.MAIN to this.menuHandler::mainMenuHandler, Menus.SWAP to this.menuHandler::swapMenuHandler, Menus.FIGHT to this.menuHandler::fightMenuHandler, Menus.INFO to this.menuHandler::infoMenuHandler, Menus.SETTINGS to this.menuHandler::settingsMenuHandler, Menus.SETTINGS_VERBOSITY to this.menuHandler::settingsVerbosityHandler, Menus.DEX to this.menuHandler::dexMenuHandler)
 
     /**Handles everything that needs to be done at the end of the turn.*/
     fun endOfTurn() {
@@ -82,6 +83,7 @@ object Field {
 
     /**Puts an original value through all registered audit responder functions of a certain audit type. Returns the value unchanged if the audit type is not registered.*/
     fun audit(auditEvent: Audit, field: Field, att: Pokemon?, def: Pokemon?, move: Move?, original: Any?): Any? {
+        log("Auditing $auditEvent with arguments : Attacker: $att, Defender: $def, Move: $move, Original value: $original")
         var original = original
         for (sublist in this.audits) {
             for (wrapper in sublist) {
@@ -161,6 +163,7 @@ object Field {
 
     /**Calculate a move's final damage given the context. Like real Pokemon, the return value is rounded. Unlike it, intermediate values are NOT rounded. I wonder how inaccurate that would make it?*/
     fun dmgcalc(attacker: Pokemon, defender: Pokemon, move: Move): Int {
+        log("Damage calculation begins with: Attacker: $attacker, defender: $defender, move: $move")
         if (move.movetype == MoveType.STATUS) {
             move.side(this, attacker, defender)
             return 0
@@ -195,6 +198,7 @@ object Field {
         }
         //TIP Final damage calculation
         basedmg = basedmg * randomFactor * stab * burnPenalty * critBonus * typeEffectivenessBonus
+        log("Damage breakdown: Base damage: $basedmg, Random factor: $randomFactor, STAB: $stab, Burn penalty: $burnPenalty, Crit?: $crit, Crit multiplier: $critBonus, Type effectiveness multiplier: $typeEffectivenessBonus")
         move.side(this, attacker, defender)
         if (basedmg < 1 && basedmg != 0.0 && move.power > 0) (return 1) else (return kotlin.math.round(basedmg).toInt())
     }
@@ -210,6 +214,16 @@ object Field {
         }
     }
 }
+
+fun buildDex(): Map<Int, Pokemon> {
+    val tempDex: MutableMap<Int, Pokemon> = mutableMapOf()
+    for (poke in AllPokemon.entries) {
+        tempDex.put(poke.value.dexNo, poke.value)
+    }
+    return tempDex.toMap()
+}
+
+val dexMap: Map<Int, Pokemon> = buildDex()
 
 fun main() {
     Field.you = Player("You", Field)

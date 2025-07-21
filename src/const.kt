@@ -77,8 +77,8 @@ enum class Terrain(val fullname: String, val effects: List<AuditWrapper> = listO
 }
 
 /**Represents Pokemon genders.*/
-enum class Gender {
-    MALE, FEMALE, GENDERLESS;
+enum class Gender(val fullname: String) {
+    MALE("Male"), FEMALE("Female"), GENDERLESS("Genderless");
 
     /**Check if a gender is the opposite of yours.*/
     companion object {
@@ -90,13 +90,13 @@ enum class Gender {
 }
 
 /**Represents the rates at which Pokemon can level up.*/
-enum class LevellingRate {
-    MEDIUM_FAST, ERRATIC, FLUCTUATING, MEDIUM_SLOW, FAST, SLOW
+enum class LevellingRate(val fullname: String) {
+    MEDIUM_FAST("Medium Fast"), ERRATIC("Erratic"), FLUCTUATING("Fluctuating"), MEDIUM_SLOW("Medium Slow"), FAST("Fast"), SLOW("Slow"), GLITCHED("???")
 }
 
 /**Represents the peculiar (and rather useless) quality given to Pokemon known as "Shape".*/
-enum class PokemonShape {
-    HEAD_ONLY, HEAD_AND_TORSO, SERPENTINE, HEAD_AND_LEGS, QUADRUPED, MULTIPED, INSECTOID, HEAD_AND_ARMS, DRACONIC, MANY_WINGS, OCEANIC, HUMANOID, KAIJUESQUE, MULTIPLE_BODIES
+enum class PokemonShape(val desc: String) {
+    HEAD_ONLY("Head"), HEAD_AND_TORSO("Head and torso"), SERPENTINE("Serpentine"), HEAD_AND_LEGS("Head and legs"), QUADRUPED("Quadruped"), MULTIPED("Many legs"), INSECTOID("Insectoid"), HEAD_AND_ARMS("Head and arms"), DRACONIC("Draconic"), MANY_WINGS("Many wings"), OCEANIC("Fish-like"), HUMANOID("Humanoid"), KAIJUESQUE("Kaiju-like"), MULTIPLE_BODIES("Multiple bodies")
 }
 
 /**Static information about audit responder functions. Used in enums and other global values.*/
@@ -123,6 +123,6 @@ fun kotlin.random.Random.randLessOrEqualDouble(lessThanOrEqual: Double, max: Dou
 }
 
 var verbose: Boolean = false
-fun log(message: String) {
-    if (verbose) println(message)
+fun log(message: String, prefix: String = "LOG: ", postfix: String = "") {
+    if (verbose) println("$prefix$message$postfix")
 }

@@ -2,13 +2,31 @@ package jehr.experiments.pkmnbatsim3
 
 import kotlin.random.Random.Default as rng
 
-class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, spe: Int, var types: MutableList<Type>, val genderDist: Map<Gender, Double>, val height: Double, var weight: Double, val catchrate: Int, val expYield: Int = 0, val levelRate: LevellingRate = LevellingRate.MEDIUM_FAST, EVYield: Map<Stat, Int> = mapOf(), val _moves: List<Move> = mutableListOf(AllMoves.TACKLE.value), private val _ability: Abilities = Abilities.NONE, val dex: String = "No information.", val shape: PokemonShape? = null, val moveset: Map<Int, Move> = mapOf(), val randomMoves: Boolean = false, val targetField: Field? = null) {
+class Pokemon(val dexNo: Int,
+              val name: String,
+              hp: Int, atk: Int, def: Int, spa: Int, spd:Int, spe: Int,
+              var types: MutableList<Type>,
+              val genderDist: Map<Gender, Double>,
+              val height: Double, var weight: Double,
+              val catchrate: Int,
+              val expYield: Int = 0,
+              val levelRate: LevellingRate = LevellingRate.MEDIUM_FAST,
+              EVYield: Map<Stat, Int> = mapOf(),
+              val _moves: List<Move> = mutableListOf(AllMoves.TACKLE.value),
+              private val _ability: Abilities = Abilities.NONE,
+              val dex: String = "No information.",
+              val shape: PokemonShape? = null,
+              val moveset: Map<Int, Move> = mapOf(),
+              val abilityset: Map<Abilities, Double> = mapOf(),
+              val randomMoves: Boolean = false,
+              val randomAbilities: Boolean = false,
+              val targetField: Field? = null) {
     private val stats: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to hp, Stat.ATK to atk, Stat.DEF to def, Stat.SPA to spa, Stat.SPD to spd, Stat.SPE to spe, Stat.CRTDMG to 1, Stat.CRTRTE to 1, Stat.ACC to 1, Stat.EVA to 1)
 
     private var statboosts: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0, Stat.CRTDMG to 0, Stat.CRTRTE to 0, Stat.ACC to 0, Stat.EVA to 0)
 
     private var item: Pair<HeldItem, List<AuditWrapper>>? = null
-    var level: Int = 100
+    var level: Int = 50
     var exp: Int = 0
     val EVs: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0)
     val EVYield: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0)
@@ -19,8 +37,19 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
             this.EVYield[stat.key] = stat.value
         }
     }
-    var ability: List<AuditWrapper> = _ability.effects.map { AuditWrapper(it, this, _ability) }
+    var ability: List<AuditWrapper> = listOf()
     init {
+        if (this.randomAbilities && this.abilityset.isNotEmpty()) {
+            if (this.abilityset.values.sum() != 1.0) throw IllegalArgumentException("ABility probability distribution does not add up to 1.")
+            val choice: Double = rng.nextDouble(0.0, 1.0)
+            var cumulative: Double = 0.0
+            for ((abil, prob) in this.abilityset) {
+                cumulative += prob
+                if (choice <= prob) this.ability = abil.effects.map { AuditWrapper(it, this, _ability) }
+            }
+        } else {
+            this.ability = _ability.effects.map { AuditWrapper(it, this, _ability) }
+        }
         for (wrapper in this.ability) {
             if (this.targetField != null && wrapper.info.event == Audit.POKEMON_INIT_TYPES) {
                 wrapper.respond(this.targetField, this, null, null, null)
@@ -65,23 +94,67 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
     var cooldown: Int = 0
     private var nonVolatileStatus: NonVolatileStatus? = null
     /**Map of currently active volatile statuses mapped to their duration (in turns).*/
-    private var volatileStatuses: MutableMap<VolatileStatus, Int> = mutableMapOf()
+    private var volatileStatuses: MutableList<Triple<VolatileStatus, List<AuditWrapper>, Int>> = mutableListOf()
 
     /**# Imagine not having a built-in copy function.*/
-    fun copy(randomMoves: Boolean = this.randomMoves, targetField: Field? = null): Pokemon {
-        return Pokemon(this.name, this.stats[Stat.HP]!!, this.stats[Stat.ATK]!!, this.stats[Stat.DEF]!!, this.stats[Stat.SPA]!!, this.stats[Stat.SPD]!!, this.stats[Stat.SPE]!!, this.types, this.genderDist, this.height, this.weight, this.catchrate,this.expYield, this.levelRate, this.EVYield,this.moves, this._ability, this.dex, this.shape, this.moveset, randomMoves, targetField)
+    fun copy(randomMoves: Boolean = this.randomMoves, targetField: Field? = null, randomAbilities: Boolean = this.randomAbilities): Pokemon {
+        return Pokemon(this.dexNo, this.name, this.stats[Stat.HP]!!, this.stats[Stat.ATK]!!, this.stats[Stat.DEF]!!, this.stats[Stat.SPA]!!, this.stats[Stat.SPD]!!, this.stats[Stat.SPE]!!, this.types, this.genderDist, this.height, this.weight, this.catchrate,this.expYield, this.levelRate, this.EVYield,this.moves, this._ability, this.dex, this.shape, this.moveset, this.abilityset, randomMoves, randomAbilities, targetField)
     }
 
-    /**Returns a prettified string of text containing the Pokemon's information, meant to be printed.*/
+    /**Returns a prettified string containing the Pokemon's battle-relevant information, meant to be printed.*/
     fun baseInfoAsString(): String {
-        var text: String = "\nName: $name${this.nonVolatileStatus?.name ?: ""}\n\nBase Stats (Boost Level):\n"
+        var text: String = "\nName: $name${this.nonVolatileStatus?.name ?: ""}\nDex Number: ${this.dexNo}\n\nBase Stats (Boost Level):\n"
         for (stat in Stat.entries) {
-            text += "${stat.fullname}: ${if (stat == Stat.HP) "${this.currentHealth}/" else ""}${this.stats[stat]!!} (${if (this.statboosts[stat]!! < 0) "-" else ""}${this.statboosts[stat]})\n"
+            text += "${stat.fullname}: ${if (stat == Stat.HP) "${this.currentHealth}/" else ""}${this.stats[stat]!!} (${if (this.statboosts[stat]!! < 0) "-" else ""}${this.statboosts[stat]}) = ${this.getStat(stat)}\n"
         }
-        text += "\nMoves:\n${this.movesAsString()}\n\nInfo:\n${this.dex}"
+        text += "\nAbility: ${this._ability.fullname}\n${this._ability.desc}\n\nMoves:\n${this.movesAsString()}"
         return text
     }
-
+    /**Returns a prettified string of text containing the Pokemon's complete information, meant to be printed.*/
+    fun dexInfoAsString(): String {
+        var text = "Name: ${this.name} (#"
+        if (this.dexNo.toString().length < 4) {
+            for (i in 1..4-this.dexNo.toString().length) text += "0"
+        }
+        text += "${this.dexNo})\n\nStats:\n"
+        for ((stat, value) in this.stats) {
+            text += "${stat.fullname}: $value\n"
+        }
+        val genderDesc: MutableList<String> = mutableListOf()
+        for ((g, v) in this.genderDist) {
+            genderDesc += "${g.fullname}: ${(v*100).toInt()}%"
+        }
+        val evyDesc: MutableList<String> = mutableListOf()
+        for ((stat, evy) in this.EVYield) {
+            if (evy != 0) evyDesc += "$evy in ${stat.fullname}"
+        }
+        if (evyDesc.isEmpty()) evyDesc += "No EV Yield"
+        var abilDesc: String = "\n"
+        if (this.abilityset.isEmpty()) {
+            abilDesc += "Ability: ${this._ability.fullname}\n${this._ability.desc}"
+        } else if (this.abilityset.keys.size == 1) {
+            abilDesc += "Ability: ${this.abilityset.keys.toList()[0].fullname}\n${this.abilityset.keys.toList()[0].desc}"
+        } else {
+            abilDesc += "Abilities:\n"
+            for ((abil, prob) in this.abilityset) {
+                abilDesc += "${abil.name} (${(prob*100).toInt()}%)\n${abil.desc}\n"
+            }
+        }
+        text += """
+            |$abilDesc
+            |
+            |Height: ${this.height}m      Weight: ${this.weight}kg
+            |Catch Rate: ${this.catchrate}      Experience Yield: ${this.expYield}pts
+            |Levelling Rate: ${this.levelRate.fullname}      Shape: ${this.shape?.desc ?: "No info"}
+            |Gender distribution: ${genderDesc.joinToString()}
+            |EV Yield: ${evyDesc.joinToString()}
+            |
+            |Info:
+            |${this.dex}
+            |
+            |Enter to continue to moveset.""".trimMargin()
+        return text
+    }
     /**Returns a prettified string of text containg the Pokemon's moveset, meant to be printed.*/
     fun movesAsString(): String {
         val strList: MutableList<String> = mutableListOf()
@@ -142,29 +215,33 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
         return success
     }
 
-    fun getVolatileStatuses(): Map<VolatileStatus, Int> = this.volatileStatuses.toMap()
+    fun getVolatileStatuses(): List<Triple<VolatileStatus, List<AuditWrapper>, Int>> = this.volatileStatuses.toList()
     /**Remove a specific volatile status, or don't specify one to remove all of them.*/
     fun clearVolatileStatuses(target: VolatileStatus? = null) {
         if (target == null) {
             this.volatileStatuses.clear()
         } else {
-            this.volatileStatuses.remove(target)
+            for (tri in this.volatileStatuses) {
+                if (tri.first == target) this.volatileStatuses.remove(tri)
+                }
+            }
         }
-    }
-    /**Apply a volatile status condition. Returns true if it was successfully applied, false if it was blocked.*/
+    /**Apply a volatile status condition. Adds to the internal and field list. Returns true if it was successfully applied, false if it was blocked.*/
     fun applyVolatileStatuses(apply: VolatileStatus, duration: Int): Boolean {
         var success = true
         if (success) {
-            this.volatileStatuses.put(apply, duration)
+            this.volatileStatuses.add(Triple(apply, apply.info.map { AuditWrapper(it, this, apply) }, duration))
+            for (wrap in this.volatileStatuses.last().second) this.targetField?.addAuditResponder(wrap)
         }
         return success
     }
-    /**Derement the timers of all volatile statuses by one, and remove them if they reach 0.*/
+    /**Derement the timers of all volatile statuses by one, and remove them from the internal and field ist if they reach 0.*/
     fun decrementVolatileStatuses() {
-        for ((status, time) in this.volatileStatuses) {
-            this.volatileStatuses[status]?.minus(1)
-            if (this.volatileStatuses[status] == 0) {
-                this.volatileStatuses.remove(status)
+        for ((pos, status) in this.volatileStatuses.withIndex()) {
+            this.volatileStatuses[pos] = Triple(status.first, status.second, status.third-1)
+            if (this.volatileStatuses[pos].third <= 0) {
+                this.volatileStatuses.removeAt(pos)
+                for (wrap in status.second) this.targetField?.removeAuditResponder(wrap)
             }
         }
     }
@@ -199,13 +276,15 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
         }
     }
 
-    /**Registers all of this's audit responders to the field. Registers: ability, item, volatile statuses, moves.*/
+    /**Registers all of this's audit responders to the field. Registers: ability, item, volatile statuses?.*/
     fun register() {
-        TODO()
+        for (wrap in this.ability) this.targetField?.addAuditResponder(wrap)
+        for (wrap in this.item?.second ?: listOf()) this.targetField?.addAuditResponder(wrap)
     }
-    /**Removes all of this's audit responders from the field's audit list Deregisters: ability, item, volatile statuses, moves.*/
+    /**Removes all of this's audit responders from the field's audit list Deregisters: ability, item, volatile statuses?.*/
     fun deregister() {
-        TODO()
+        for (wrap in this.ability) this.targetField?.removeAuditResponder(wrap)
+        for (wrap in this.item?.second ?: listOf()) this.targetField?.removeAuditResponder(wrap)
     }
 
     fun useMove(opp: Pokemon, moveNumber: Int) {
@@ -218,8 +297,8 @@ class Pokemon(val name: String, hp: Int, atk: Int, def: Int, spa: Int, spd:Int, 
     }
 }
 
-private val plcPoke = Pokemon("Placeholder", 100, 100, 100, 100, 100, 100, mutableListOf(Type.UNKNOWN), mapOf(Gender.MALE to 0.5, Gender.FEMALE to 0.5), 1.0, 1.0, 3, dex = "Placeholder Pokemon, for testing purposes.")
-private val arceus = Pokemon("Arceus", 120, 120, 120, 120, 120, 120, mutableListOf(Type.NORMAL), mapOf(Gender.GENDERLESS to 1.0), 3.2, 320.0, 3, 324, LevellingRate.SLOW, mapOf(Stat.HP to 3), dex = "Before anything was, there was an egg. It did not know it was an egg, or, indeed, that it existed, since the very concepts of \"egg\" and \"existance\" did not exist yet. One timeless day, it hatched, and out emerged the first being capable of creation. It named itself Arceus, and the rest is history.", shape = PokemonShape.QUADRUPED)
+private val plcPoke = Pokemon(9999, "Placeholder", 100, 100, 100, 100, 100, 100, mutableListOf(Type.UNKNOWN), mapOf(Gender.MALE to 0.5, Gender.FEMALE to 0.5), 1.0, 1.0, 3, dex = "Placeholder Pokemon, for testing purposes.")
+private val arceus = Pokemon(493, "Arceus", 120, 120, 120, 120, 120, 120, mutableListOf(Type.NORMAL), mapOf(Gender.GENDERLESS to 1.0), 3.2, 320.0, 3, 324, LevellingRate.SLOW, mapOf(Stat.HP to 3), dex = "Before anything was, there was an egg. It did not know it was an egg, or, indeed, that it existed, since the very concepts of \"egg\" and \"existence\" did not exist yet. One timeless day, it hatched, and out emerged the first being capable of creation. It named itself Arceus, and the rest is history.", shape = PokemonShape.QUADRUPED, _ability = Abilities.MULTITYPE)
 
 enum class AllPokemon(val value: Pokemon) {
     PLACEHOLDER(plcPoke), ARCEUS(arceus)

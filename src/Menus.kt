@@ -26,10 +26,10 @@ class MenuHandler(val target: Field) {
             |Options:
             |1: Fight${sep}2: Swap
             |3: Info${sep}4: Run
-            |5: Settings
+            |5: Settings${sep}6: Dex
             |> """.trimMargin())
-        val opt = readln()
-        if (!validateOpt(opt, 1, 5)) return null
+        val opt = readln().trim()
+        if (!validateOpt(opt, 1, 6)) return null
         val option = opt.toInt()
         when (option) {
             1 -> target.menu = Menus.FIGHT
@@ -38,6 +38,7 @@ class MenuHandler(val target: Field) {
             4 -> { this.target.end = true
                 println("You fled the battle!") }
             5 -> target.menu = Menus.SETTINGS
+            6 -> target.menu = Menus.DEX
             else -> return null
         }
         return false
@@ -49,7 +50,7 @@ class MenuHandler(val target: Field) {
             println("${pos+1}: ${poke.name} ${poke.getNameModifier()}${if (target.you.selected == pos) " (Currently selected)" else ""}")
         }
         print("9: Back\n> ")
-        val opt = readln()
+        val opt = readln().trim()
         if (!validateOpt(opt, 1, target.you.team.size, listOf(9))) return null
         val option = opt.toInt()
         if (option == 9) {
@@ -78,7 +79,7 @@ class MenuHandler(val target: Field) {
             allowed.add(i+moveAmount)
         }
         print("9: Back\n> ")
-        val opt = readln()
+        val opt = readln().trim()
         allowed.add(9)
         if (!this.validateOpt(opt, 1, selected.moves.size, allowed.toList())) return null
         allowed.remove(9)
@@ -104,12 +105,14 @@ class MenuHandler(val target: Field) {
             |8: Back
             |> 
         """.trimMargin())
-        val option: String = readln()
+        val option: String = readln().trim()
         if (!this.validateOpt(option, 1, target.you.team.size, listOf(7, 8))) return null
         val opt: Int = option.toInt()
         when (opt) {
-            in 1..target.you.team.size -> println(target.you.team[opt-1].baseInfoAsString()).also { print("Enter to continue..."); readln() }
-            7 -> println(target.opp.getSelected().baseInfoAsString()).also { print("Enter to continue..."); readln() }
+            in 1..target.you.team.size -> println(target.you.team[opt-1].baseInfoAsString()).also { print("Enter to continue...")
+                readln() }
+            7 -> println(target.opp.getSelected().baseInfoAsString()).also { print("Enter to continue...")
+                readln() }
             8 -> target.menu = Menus.MAIN
         }
         return false
@@ -121,7 +124,7 @@ class MenuHandler(val target: Field) {
             |9. Back
             |> 
         """.trimMargin())
-        val option: String = readln()
+        val option: String = readln().trim()
         if (!this.validateOpt(option, 1, 1, listOf(9))) return null
         val opt: Int = option.toInt()
         when (opt) {
@@ -137,7 +140,7 @@ class MenuHandler(val target: Field) {
             |3. Back
             |> 
         """.trimMargin())
-        val option: String = readln()
+        val option: String = readln().trim()
         if (!this.validateOpt(option, 1, 3)) return null
         val opt: Int = option.toInt()
         when (opt) {
@@ -148,8 +151,37 @@ class MenuHandler(val target: Field) {
         this.target.menu = Menus.SETTINGS
         return false
     }
+
+    fun dexMenuHandler(): Boolean? {
+        print("Enter dex number or Pokemon name> ")
+        val opt = readln().trim()
+        var selected: Pokemon?
+        var isName: Boolean = false
+        try {
+            opt.toInt()
+        } catch (_: NumberFormatException) {
+            try {
+                AllPokemon.valueOf(opt.uppercase()).value
+                isName = true
+            } catch (_: IllegalArgumentException) {
+                print("Pokemon not found.")
+                return false
+            }
+        }
+        if (!isName) {
+            val option: Int = opt.toInt()
+            selected = dexMap[option]
+        } else {
+            selected = AllPokemon.valueOf(opt.uppercase()).value
+        }
+        println(selected?.dexInfoAsString() ?: "Pokemon not found")
+        print("Enter to continue...")
+        readln()
+        this.target.menu = Menus.MAIN
+        return false
+    }
 }
 
 enum class Menus(val fullname: String) {
-    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu"), SETTINGS_VERBOSITY("Verbosity Settings Menu")
+    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu"), SETTINGS_VERBOSITY("Verbosity Settings Menu"), DEX("Pokedex CLI")
 }
