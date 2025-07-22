@@ -6,9 +6,9 @@ data class UsableItem(val name: String, val info: auditFunc, val desc: String = 
 
 val arceusPlateAuditList = listOf(AuditInfo(Audit.NEVER, 0, ::arceusPlatesTypeChange), AuditInfo(Audit.DMGCALC_BASE_POWER, 0, ::arceusPlatesDMGBoost))
 
-private fun doNothing(field: Field?, poke1: Pokemon?, poke2: Pokemon?, move: Move?, org: Any?, wrap: AuditWrapper): Any? = null
-private fun arceusPlatesTypeChange(field: Field?, poke1: Pokemon?, poke2: Pokemon?, move: Move?, org: Any?, wrap: AuditWrapper): Any? = null
-private fun arceusPlatesDMGBoost(field: Field?, poke1: Pokemon?, poke2: Pokemon?, move: Move?, org: Any?, wrap: AuditWrapper): Any? = null
+private fun doNothing(data: AuditData, wrap: AuditWrapper): Any? = null
+private fun arceusPlatesTypeChange(data: AuditData, wrap: AuditWrapper): Any? = null
+private fun arceusPlatesDMGBoost(data: AuditData, wrap: AuditWrapper): Any? = null
 
 private val plcItem = HeldItem("Placeholder", listOf(AuditInfo(Audit.NEVER, 0, ::doNothing)))
 private val blankPlate = HeldItem("Blank Plate", arceusPlateAuditList, "A stone tablet imbued with the essence of normalcy. With it comes the power to secure, contain and protect.", mutableMapOf("type" to Type.NORMAL))

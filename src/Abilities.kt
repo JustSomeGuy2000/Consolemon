@@ -1,11 +1,11 @@
 package jehr.experiments.pkmnbatsim3
 
-private fun multitypeEffect(field: Field?, owner: Pokemon?, a:Pokemon?, b:Move?, c:Any?, wrapper: AuditWrapper): Any? {
-    if (owner !is Pokemon) return null
-    if (owner.getItemInfo()?.first?.info == arceusPlateAuditList) {
-        val type = owner.getItemInfo()?.first?.extra["type"]
+private fun multitypeEffect(data: AuditData, wrapper: AuditWrapper): Any? {
+    if (wrapper.owner !is Pokemon) return null
+    if (wrapper.owner.getItemInfo()?.first?.info == arceusPlateAuditList) {
+        val type = wrapper.owner.getItemInfo()?.first?.extra["type"]
         if (type is Type) {
-            owner.types = mutableListOf(type)
+            wrapper.owner.types = mutableListOf(type)
         }
     }
     return null

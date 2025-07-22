@@ -73,24 +73,32 @@ class MenuHandler(val target: Field) {
         val moveAmount: Int = selected.moves.size
         val allowed: MutableList<Int> = mutableListOf()
         val disallowed: MutableList<Int> = mutableListOf()
+        var struggle: Boolean = false
         println("Selected Pokemon: ${selected.name}\nMoves:")
         for (i in 1..moveAmount) {
-            println("${i}: ${selected.moves[i-1].name}${if (selected.moves[i-1].disabled) " (Cannot be chosen)".also {disallowed.add(i+1)} else ""}    ${i+moveAmount}: Move Info")
+            println("${i}: ${selected.moves[i-1].name}${if (selected.moves[i-1].disabled || this.target.audit(Audit.MOVE_DISABLE_CHECK, selected, null, selected.moves[i-1], false) as Boolean) " (Cannot be chosen)".also {disallowed.add(i+1)} else ""}    ${i+moveAmount}: Move Info")
             allowed.add(i+moveAmount)
+        }
+        if (disallowed.size == moveAmount) {
+            struggle = true
+            println("10: Struggle")
         }
         print("9: Back\n> ")
         val opt = readln().trim()
         allowed.add(9)
+        if (struggle) allowed.add(10)
         if (!this.validateOpt(opt, 1, selected.moves.size, allowed.toList())) return null
+        if (struggle) allowed.remove(10)
         allowed.remove(9)
         val option: Int = opt.toInt()
         when (option) {
-            in allowed -> { println(selected.moves[option-moveAmount-1])
+            in allowed -> { println(selected.moves[option-moveAmount-1].moveInfoAsString())
                 println("Enter to continue...")
                 readln()
                 return false }
             in disallowed -> println("You cannot choose that move. Choose another one.").also { return false }
             9 -> this.target.menu = Menus.MAIN
+            10 -> selected.useMove(this.target.opp.getSelected(), specific = AllMoves.STRUGGLE.value)
             else -> { selected.useMove(this.target.opp.getSelected(), option-1)
                 this.target.menu = Menus.MAIN
                 return true }

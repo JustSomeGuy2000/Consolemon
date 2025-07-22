@@ -1,13 +1,15 @@
 package jehr.experiments.pkmnbatsim3
 
 /**Signature all audit responder functions should use. The first Pokemon is the attacker and the second is the defender. The Any? is an original value, which the function should modify and return.*/
-typealias auditFunc = (Field?, Pokemon?, Pokemon?, Move?, Any?, AuditWrapper) -> Any?
+typealias auditFunc = (AuditData, AuditWrapper) -> Any?
 /**Prints a menu and takes in user input. All checks are automatically handled. Returns true if the turn should progress, false if it should not, and null if invalid input was provided. Returning null will print a standard message, return false to avoid that and print a custom one.*/
 typealias menuHandlerFunc = () -> Boolean?
+/**Signature all move side functions must follow. Arguments are field, attacking pokemon, defending pokemon, and damage dealt (for recoil stuff).*/
+typealias moveSideFunction = (Field, Pokemon, Pokemon, Int) -> Unit
 
 /**Represents types themselves, without any additional information.*/
 enum class Type(val shortname: String) {
-    NORMAL("norm"), FIGHTING("fght"), FLYING("fly"), POISON("psn"), GROUND("grnd"), ROCK("rck"), BUG("bug"), GHOST("ghst"), STEEL("stl"), FIRE("fre"), WATER("wtr"), GRASS("grs"), ELECTRIC("elec"), PSYCHIC("psy"), DRAGON("drgn"), ICE("ice"), FAIRY("fry"), DARK("drk"), STELLAR("stlr"), UNKNOWN("???")
+    NORMAL("norm"), FIGHTING("fght"), FLYING("fly"), POISON("psn"), GROUND("grnd"), ROCK("rck"), BUG("bug"), GHOST("ghst"), STEEL("stl"), FIRE("fre"), WATER("wtr"), GRASS("grs"), ELECTRIC("elec"), PSYCHIC("psy"), DRAGON("drgn"), ICE("ice"), FAIRY("fry"), DARK("drk"), STELLAR("stlr"), TYPELESS("???")
 }
 
 /** Represents offensive matchups. That is, half damage to, double damage to, and 0 damage to. */
@@ -31,7 +33,7 @@ enum class TypeMatchup(val base: Type, val weak: List<Type> = listOf(), val stro
     STEEL(Type.STEEL, listOf(Type.FIRE, Type.WATER, Type.ELECTRIC, Type.STEEL), listOf(Type.ICE, Type.ROCK, Type.FAIRY)),
     FAIRY(Type.FAIRY, listOf(Type.FIRE, Type.POISON, Type.STEEL), listOf(Type.FIGHTING, Type.DRAGON, Type.DARK)),
     STELLAR(Type.STELLAR),
-    UNKNOWN(Type.UNKNOWN);
+    TYPELESS(Type.TYPELESS);
 
     companion object {
         /**Get a Type's TypeMatchup object. Sure, its one line of code, but I'm afraid I'll forget it.*/
@@ -62,9 +64,10 @@ enum class MoveType(val fullname: String) {
 enum class NonVolatileStatus(val fullname: String, val immune: List<Type> = listOf(), val action: String) {
     PSN("Poison", listOf(Type.POISON, Type.STEEL), "poisoned"), BRN("Burn", listOf(Type.POISON), "burned"), PRZ("Paralysed", action = "paralysed"), FRZ("Frozen", listOf(Type.ICE), "frozen"), TXC("Toxic Poison", listOf(Type.POISON, Type.STEEL), "badly poisoned"), SLP("Asleep", action = "put to sleep")
 }
-
 /**Represents volatile statuses. These are not displayed and are cleared by switching out.*/
-enum class VolatileStatus(val fullname: String, val info: List<AuditInfo>)
+enum class VolatileStatus(val fullname: String, val remove: (Field, Pokemon) -> Unit) {
+    PERISH_SONG("Perish Song", ::perishSongRemove)
+}
 
 /**Represents weather conditions.*/
 enum class Weather(val fullname: String, val effects: List<AuditWrapper> = listOf()) {
@@ -103,15 +106,16 @@ enum class PokemonShape(val desc: String) {
 data class AuditInfo(val event: Audit, val priority: Int, val responder: auditFunc)
 /**Dynamic information about audit responder functions. Used for any non-global use of AuditInfo to prevent global alterations.*/
 data class AuditWrapper(val info: AuditInfo, val owner: Any? = null, val origin: Any? = null, var extra: Map<Any, Any> = mapOf(), var time: Float = Float.POSITIVE_INFINITY) {
-    fun respond(field: Field?, att: Pokemon?, def: Pokemon?, move: Move?, original: Any?): Any? {
-        return this.info.responder(field, att, def, move, original, this)
+    fun respond(data: AuditData): Any? {
+        return this.info.responder(data, this)
     }
 }
+/**Runtime arguments passed to audit responder functions. In an object so I can change the arguments in the future without updating all the functions.*/
+data class AuditData(val field: Field?, val att: Pokemon?, val def: Pokemon?, val move: Move?, val original: Any?)
 
-//TODO Implement more audit events and audit responder functions.
 /**Represents events functions can subscribe to.*/
 enum class Audit(val desc: String) {
-    NEVER("Never called."), DMGCALC_WEATHER("Called when calculating the weather factor in damage calculation."), END_OF_TURN("Called at the end of the turn."), POKEMON_INIT_TYPES("Called when a Pokemon's type is being initialised."), POKEMON_CHANGE_ITEM("Called when a Pokemon's item is changed."), DMGCALC_BASE_POWER("Called when calculating the base power of a move.")
+    NEVER("Never called."), DMGCALC_WEATHER("Called when calculating the weather factor in damage calculation."), END_OF_TURN("Called at the end of the turn."), POKEMON_INIT_TYPES("Called when a Pokemon's type is being initialised."), POKEMON_CHANGE_ITEM("Called when a Pokemon's item is changed."), DMGCALC_BASE_POWER("Called when calculating the base power of a move."), MOVE_DISABLE_CHECK("Called when checking if a move should be usable or not."), DMGCALC_ACCURACY("Called when determining the accuracy of a move."), ON_SWAP_TO("Called when swapping, on the Pokemon swapped to."), DMGCALC_SET_OPP("Called when the move's target can be changed."), ON_REMOVE("Called when removed from the audit list."), DMGCALC_FINAL("Called after calculating the final damage."), GLOBAL_SOUND_CANCEL("Called when there is a chance to completely nullify sound-based moves."), PERSONAL_SOUND_CANCEL("Called when there is a chance to nullify sound-based moves for the Pokemon.")
 }
 
 fun kotlin.random.Random.randLessOrEqualInt(lessThanOrEqual: Int, max: Int = 100, min: Int = 0): Boolean {

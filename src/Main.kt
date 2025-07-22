@@ -18,6 +18,7 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
         this.getSelected().clearVolatileStatuses()
         this.getSelected().deregister()
         this.selected = to
+        this.field.audit(Audit.ON_SWAP_TO, null, null, null, to)
         this.getSelected().register()
     }
     /**Derement the timers of all volatile statuses in this player's team by one, and remove them if they reach 0.*/
@@ -73,25 +74,27 @@ object Field {
 
     /**Handles everything that needs to be done at the end of the turn.*/
     fun endOfTurn() {
+        this.audit(Audit.END_OF_TURN, null, null, null, null)
+        this.decrementAudits()
         this.you.decrementVolatileStatuses()
         this.opp.decrementVolatileStatuses()
-        this.audit(Audit.END_OF_TURN, this, null, null, null, null)
-        this.decrementAudits()
         this.turn++
         println("Current turn: ${this.turn}")
     }
 
     /**Puts an original value through all registered audit responder functions of a certain audit type. Returns the value unchanged if the audit type is not registered.*/
-    fun audit(auditEvent: Audit, field: Field, att: Pokemon?, def: Pokemon?, move: Move?, original: Any?): Any? {
+    fun audit(auditEvent: Audit, att: Pokemon?, def: Pokemon?, move: Move?, original: Any?): Any? {
         log("Auditing $auditEvent with arguments : Attacker: $att, Defender: $def, Move: $move, Original value: $original")
         var original = original
         for (sublist in this.audits) {
             for (wrapper in sublist) {
                 if (wrapper.info.event == auditEvent) {
-                    original = wrapper.respond(field, att, def, move, original)
+                    original = wrapper.respond(AuditData(this, att, def, move, original))
+                    log("Audit responder at priority level ${this.audits.indexOf(sublist)} found: $wrapper, resulting in $original.")
                 }
             }
         }
+        log("Audit event $auditEvent concluded with result $original.")
         return original
     }
 
@@ -103,11 +106,13 @@ object Field {
             }
         }
         this.audits[wrapper.info.priority].add(wrapper)
+        log("Audit responder $wrapper added to priority level ${wrapper.info.priority}")
     }
 
     /**Remove an audit responder function from the audit list.*/
     fun removeAuditResponder(wrapper: AuditWrapper, clean: Boolean = true) {
         this.audits[wrapper.info.priority].remove(wrapper)
+        log("Audit responder $wrapper removed from ${wrapper.info.priority}")
         if (clean) this.cleanAuditList()
     }
 
@@ -117,9 +122,21 @@ object Field {
             for (wrapper in pri) {
                 wrapper.time -= 1.0f
                 if (wrapper.time <= 0.0f) pri.remove(wrapper)
+                if (wrapper.info.event == Audit.ON_REMOVE) wrapper.respond(AuditData(this, null, null, null, null))
+                log("Audit responder $wrapper timed out and was removed.")
             }
         }
         if (clean) this.cleanAuditList()
+    }
+
+    /**Look for a specific audit responder function in the audit list. Returns true if preseny, false otherwise.*/
+    fun findAuditResponder(find: auditFunc): Boolean {
+        for (sublist in this.audits) {
+            for (wrap in sublist) {
+                if (wrap.info.responder == find) return true
+            }
+        }
+        return false
     }
 
     /**Goes through every audit priority level, trimming excess priotity levels.*/
@@ -137,6 +154,7 @@ object Field {
             }
         }
         this.weather = to
+        println(if (to != null) "The weather changed to ${to.fullname}" else "The weather cleared.")
         if (to != null) {
             for (info in this.weather!!.effects) {
                 this.addAuditResponder(info)
@@ -153,6 +171,7 @@ object Field {
             }
         }
         this.terrain = to
+        println(if (to != null) "The terrain changed to ${to.fullname}" else "The terrain cleared.")
         if (to != null) {
             for (wrapper in this.terrain!!.effects) {
                 this.addAuditResponder(wrapper)
@@ -164,8 +183,27 @@ object Field {
     /**Calculate a move's final damage given the context. Like real Pokemon, the return value is rounded. Unlike it, intermediate values are NOT rounded. I wonder how inaccurate that would make it?*/
     fun dmgcalc(attacker: Pokemon, defender: Pokemon, move: Move): Int {
         log("Damage calculation begins with: Attacker: $attacker, defender: $defender, move: $move")
+        if (this.audit(Audit.GLOBAL_SOUND_CANCEL, attacker, defender, move, false) as Boolean) {
+            print("The move was blocked!")
+            return 0
+        }
+        val attacker: Pokemon = this.audit(Audit.DMGCALC_SET_OPP, attacker, defender, move, attacker) as Pokemon
+        if (rng.nextInt(1, 100) > this.audit(Audit.DMGCALC_ACCURACY, attacker, defender, move, move.acc) as Int && move.movetype != MoveType.STATUS) {
+            println("${attacker.name} missed!")
+            return 0
+        }
+        val transientAudits: MutableList<AuditWrapper> = mutableListOf()
+        for (info in move.transients) {
+            val wrap: AuditWrapper = AuditWrapper(info, attacker, move)
+            this.addAuditResponder(wrap)
+            transientAudits.add(wrap)
+        }
+        for (info in move.audits) { this.addAuditResponder(AuditWrapper(info, attacker, move)) }
         if (move.movetype == MoveType.STATUS) {
-            move.side(this, attacker, defender)
+            move.side(this, attacker, defender, 0)
+            for (wrap in transientAudits) {
+                this.removeAuditResponder(wrap)
+            }
             return 0
         }
         var basedmg: Double
@@ -199,7 +237,15 @@ object Field {
         //TIP Final damage calculation
         basedmg = basedmg * randomFactor * stab * burnPenalty * critBonus * typeEffectivenessBonus
         log("Damage breakdown: Base damage: $basedmg, Random factor: $randomFactor, STAB: $stab, Burn penalty: $burnPenalty, Crit?: $crit, Crit multiplier: $critBonus, Type effectiveness multiplier: $typeEffectivenessBonus")
-        move.side(this, attacker, defender)
+        move.side(this, attacker, defender, basedmg.toInt())
+        for (wrap in transientAudits) {
+            this.removeAuditResponder(wrap)
+        }
+        if (move.delayed) {
+            basedmg = 0.0
+            log("Move identified as delayed. Damage nullified.")
+        }
+        basedmg = this.audit(Audit.DMGCALC_FINAL, attacker, defender, move, basedmg) as Double
         if (basedmg < 1 && basedmg != 0.0 && move.power > 0) (return 1) else (return kotlin.math.round(basedmg).toInt())
     }
 

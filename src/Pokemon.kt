@@ -38,9 +38,10 @@ class Pokemon(val dexNo: Int,
         }
     }
     var ability: List<AuditWrapper> = listOf()
+    // Ability initialisation
     init {
         if (this.randomAbilities && this.abilityset.isNotEmpty()) {
-            if (this.abilityset.values.sum() != 1.0) throw IllegalArgumentException("ABility probability distribution does not add up to 1.")
+            if (this.abilityset.values.sum() != 1.0) throw IllegalArgumentException("Ability probability distribution does not add up to 1.")
             val choice: Double = rng.nextDouble(0.0, 1.0)
             var cumulative: Double = 0.0
             for ((abil, prob) in this.abilityset) {
@@ -52,7 +53,7 @@ class Pokemon(val dexNo: Int,
         }
         for (wrapper in this.ability) {
             if (this.targetField != null && wrapper.info.event == Audit.POKEMON_INIT_TYPES) {
-                wrapper.respond(this.targetField, this, null, null, null)
+                wrapper.respond(AuditData(this.targetField, this, null, null, null))
             }
         }
     }
@@ -92,6 +93,8 @@ class Pokemon(val dexNo: Int,
         set(value) {field = value
             if (value) println("${this.name} fainted!")}
     var cooldown: Int = 0
+    var grounded: Pair<Boolean, Int> = false to 0
+    var substitute: SubstituteDoll? = null
     private var nonVolatileStatus: NonVolatileStatus? = null
     /**Map of currently active volatile statuses mapped to their duration (in turns).*/
     private var volatileStatuses: MutableList<Triple<VolatileStatus, List<AuditWrapper>, Int>> = mutableListOf()
@@ -188,16 +191,33 @@ class Pokemon(val dexNo: Int,
         }
     }
     /**Deal damage to this Pokemon. If HP reaches 0 as a result, this Pokemon faints.*/
-    fun dealDamage(value: Int): Unit {
-        this.currentHealth = kotlin.math.max(this.currentHealth - value, 0)
+    fun dealDamage(value: Int, antisub: Boolean = false): Unit {
+        if (this.substitute is SubstituteDoll && !antisub) {
+            this.substitute?.hp -= value
+            if (this.substitute!!.hp <= 0) this.substitute = null
+        } else {
+            this.currentHealth = kotlin.math.max(this.currentHealth - value, 0)
+        }
         if (this.currentHealth == 0) {
-            this.faint = true
-            this.volatileStatuses.clear()
-            this.nonVolatileStatus = null
+            this.kill()
         }
         println("${this.name} took $value damage!")
     }
+    /**Heal the Pokemon. Capped at max HP.*/
+    fun heal(value: Int) {
+        this.currentHealth = kotlin.math.min(this.stats[Stat.HP]!!, this.currentHealth+value)
+        println("${this.name} was healed!")
+    }
+    /**Faint this Pokemon instantly.*/
+    fun kill() {
+        this.currentHealth = 0
+        this.faint = true
+        this.volatileStatuses.clear()
+        this.nonVolatileStatus = null
+        println("${this.name} fainted!")
+    }
 
+    fun clearNonVolatileStatus() = { this.nonVolatileStatus = null }
     fun getNonVolatileStatus(): NonVolatileStatus? = this.nonVolatileStatus
     /**Apply a non-volatile status condition. Returns true if it was successfully applied, false if it was blocked.*/
     fun applyNonVolatileStatus(apply: NonVolatileStatus): Boolean {
@@ -235,14 +255,19 @@ class Pokemon(val dexNo: Int,
         }
         return success
     }
-    /**Derement the timers of all volatile statuses by one, and remove them from the internal and field ist if they reach 0.*/
+    /**Derement the timers of all volatile statuses (and grounded) by one, and remove them from the internal and field ist if they reach 0.*/
     fun decrementVolatileStatuses() {
         for ((pos, status) in this.volatileStatuses.withIndex()) {
             this.volatileStatuses[pos] = Triple(status.first, status.second, status.third-1)
             if (this.volatileStatuses[pos].third <= 0) {
                 this.volatileStatuses.removeAt(pos)
                 for (wrap in status.second) this.targetField?.removeAuditResponder(wrap)
+                TODO("Use remove function when duration is over.")
             }
+        }
+        if (this.grounded.first) {
+            this.grounded = Pair(this.grounded.first, this.grounded.second - 1)
+            if (this.grounded.second <= 0) this.grounded = Pair(false, 0)
         }
     }
 
@@ -287,17 +312,20 @@ class Pokemon(val dexNo: Int,
         for (wrap in this.item?.second ?: listOf()) this.targetField?.removeAuditResponder(wrap)
     }
 
-    fun useMove(opp: Pokemon, moveNumber: Int) {
-        val move = this.moves[moveNumber]
+    fun useMove(opp: Pokemon, moveNumber: Int = 0, specific: Move? = null) {
+        var move: Move = this.moves[moveNumber]
+        if (specific is Move) move = specific
         println("${this.name} used ${move.name}!")
         val dmg = this.targetField!!.dmgcalc(this, opp, move)
         move.currentpp -= 1
         if (move.currentpp == 0) move.disabled = true
-        opp.dealDamage(dmg)
+        opp.dealDamage(dmg, move.antisub)
     }
 }
 
-private val plcPoke = Pokemon(9999, "Placeholder", 100, 100, 100, 100, 100, 100, mutableListOf(Type.UNKNOWN), mapOf(Gender.MALE to 0.5, Gender.FEMALE to 0.5), 1.0, 1.0, 3, dex = "Placeholder Pokemon, for testing purposes.")
+class SubstituteDoll(var hp: Int, val owner: Pokemon)
+
+private val plcPoke = Pokemon(9999, "Placeholder", 100, 100, 100, 100, 100, 100, mutableListOf(Type.TYPELESS), mapOf(Gender.MALE to 0.5, Gender.FEMALE to 0.5), 1.0, 1.0, 3, dex = "Placeholder Pokemon, for testing purposes.")
 private val arceus = Pokemon(493, "Arceus", 120, 120, 120, 120, 120, 120, mutableListOf(Type.NORMAL), mapOf(Gender.GENDERLESS to 1.0), 3.2, 320.0, 3, 324, LevellingRate.SLOW, mapOf(Stat.HP to 3), dex = "Before anything was, there was an egg. It did not know it was an egg, or, indeed, that it existed, since the very concepts of \"egg\" and \"existence\" did not exist yet. One timeless day, it hatched, and out emerged the first being capable of creation. It named itself Arceus, and the rest is history.", shape = PokemonShape.QUADRUPED, _ability = Abilities.MULTITYPE)
 
 enum class AllPokemon(val value: Pokemon) {
