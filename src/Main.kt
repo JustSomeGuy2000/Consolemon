@@ -2,25 +2,42 @@ package jehr.experiments.pkmnbatsim3
 
 import kotlin.random.Random.Default as rng
 
-class Player(val name: String, val field: Field, team: MutableList<AllPokemon> = mutableListOf(AllPokemon.PLACEHOLDER), var selected: Int = 0) {
+class Player(val name: String, val field: Field, team: MutableList<AllPokemon> = mutableListOf(AllPokemon.PLACEHOLDER, AllPokemon.ARCEUS, AllPokemon.MISSINGNO
+), var selected: Int = 0) {
     var bag: MutableMap<in Item, Int> = mutableMapOf()
     var team: MutableList<Pokemon> = mutableListOf()
     init {
         for (poke in team) {
-            this.team.add(poke.value.copy(targetField = this.field))
+            this.team.add(poke.value.copy(true, this.field, owner = this))
         }
         this.swap(selected)
     }
 
+    override fun toString() = "Player(${this.hashCode()})"
+
     /** Swap the current Pokemon with another from the team. Use position in team as argument.*/
     fun swap(to: Int) {
+        if (this.field.audit(Audit.BLOCK_SWAP, this.getSelected(), null, null, false) as Boolean) return
         if (to > this.team.lastIndex || this.team[to].faint) throw IllegalArgumentException("Attempted to access fainted pokemon or out of bounds value: $to")
         this.getSelected().clearVolatileStatuses()
         this.getSelected().deregister()
+        println("Come back, ${this.getSelected().name}!")
         this.selected = to
+        println("You're up, ${this.getSelected().name}!")
         this.field.audit(Audit.ON_SWAP_TO, null, null, null, to)
         this.getSelected().register()
     }
+    /**Swap to the next Pokemon in line, or don't swap if it is the only Pokemon. Returns the swapped into Pokemon, or null, if nothing was.*/
+    fun swapToNext(): Pokemon? {
+        val num = this.nextPokemon()
+        if (num == null) {
+            return null
+        } else {
+            this.swap(num)
+            return this.getSelected()
+        }
+    }
+
     /**Derement the timers of all volatile statuses in this player's team by one, and remove them if they reach 0.*/
     fun decrementVolatileStatuses() {
         for (poke in this.team) poke.decrementVolatileStatuses()
@@ -45,6 +62,9 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
     fun getSelected(): Pokemon {
         return this.team[this.selected]
     }
+
+    /**Get the enemy of the player.*/
+    fun getEnemy(): Player = if (this == this.field.you) this.field.opp else this.field.you
 
     /**Returns a prettified string of text representing the player's team, meant to be printed.*/
     fun teamToString(): String {
@@ -71,6 +91,8 @@ object Field {
     /** A list of lists containing `AuditWrapper` objects. Audits go through priority levels of the list successively, invoking the functions of `AuditWrapper`s with specified audit events. Higher priority levels are higher numbers. Starts at priority 0.*/
     var audits: MutableList<MutableList<AuditWrapper>> = mutableListOf()
     private val menuHandlerMap: Map<Menus, menuHandlerFunc> = mapOf(Menus.MAIN to this.menuHandler::mainMenuHandler, Menus.SWAP to this.menuHandler::swapMenuHandler, Menus.FIGHT to this.menuHandler::fightMenuHandler, Menus.INFO to this.menuHandler::infoMenuHandler, Menus.SETTINGS to this.menuHandler::settingsMenuHandler, Menus.SETTINGS_VERBOSITY to this.menuHandler::settingsVerbosityHandler, Menus.DEX to this.menuHandler::dexMenuHandler)
+
+    override fun toString(): String = "Field(${this.hashCode()})"
 
     /**Handles everything that needs to be done at the end of the turn.*/
     fun endOfTurn() {
@@ -106,13 +128,13 @@ object Field {
             }
         }
         this.audits[wrapper.info.priority].add(wrapper)
-        log("Audit responder $wrapper added to priority level ${wrapper.info.priority}")
+        log("Added to priority level ${wrapper.info.priority}: Audit responder $wrapper ")
     }
 
     /**Remove an audit responder function from the audit list.*/
     fun removeAuditResponder(wrapper: AuditWrapper, clean: Boolean = true) {
         this.audits[wrapper.info.priority].remove(wrapper)
-        log("Audit responder $wrapper removed from ${wrapper.info.priority}")
+        log("Removed from ${wrapper.info.priority}: Audit responder $wrapper ")
         if (clean) this.cleanAuditList()
     }
 
@@ -121,9 +143,11 @@ object Field {
         for (pri in this.audits) {
             for (wrapper in pri) {
                 wrapper.time -= 1.0f
-                if (wrapper.time <= 0.0f) pri.remove(wrapper)
-                if (wrapper.info.event == Audit.ON_REMOVE) wrapper.respond(AuditData(this, null, null, null, null))
-                log("Audit responder $wrapper timed out and was removed.")
+                if (wrapper.time <= 0.0f) {
+                    pri.remove(wrapper)
+                    log("Timed out and removed: Audit responder $wrapper")
+                }
+                if (wrapper.info.event == Audit.ON_TIMEOUT) wrapper.respond(AuditData(this, null, null, null, null))
             }
         }
         if (clean) this.cleanAuditList()
@@ -183,7 +207,7 @@ object Field {
     /**Calculate a move's final damage given the context. Like real Pokemon, the return value is rounded. Unlike it, intermediate values are NOT rounded. I wonder how inaccurate that would make it?*/
     fun dmgcalc(attacker: Pokemon, defender: Pokemon, move: Move): Int {
         log("Damage calculation begins with: Attacker: $attacker, defender: $defender, move: $move")
-        if (this.audit(Audit.GLOBAL_SOUND_CANCEL, attacker, defender, move, false) as Boolean) {
+        if (move.vocal && this.audit(Audit.GLOBAL_SOUND_CANCEL, attacker, defender, move, false) as Boolean) {
             print("The move was blocked!")
             return 0
         }
@@ -223,7 +247,7 @@ object Field {
         val burnPenalty = if (attacker.getNonVolatileStatus() == NonVolatileStatus.BRN && move.movetype == MoveType.PHYS) 0.5 else 1.0
         val critBonus = if (crit) attacker.getStat(Stat.CRTDMG) else 1.0
         var typeEffectivenessBonus: Double = 1.0
-        val matchup: TypeMatchup = TypeMatchup.getMatchup(move.type)
+        val matchup: TypeMatchup = TypeMatchup.getMatchup(this.audit(Audit.DMGCALC_CHANGE_MOVE_TYPE, attacker, defender, move, move.type) as Type)
         for (defType in defender.types) {
             if (defType in matchup.weak) {
                 typeEffectivenessBonus *= 2
@@ -249,6 +273,46 @@ object Field {
         if (basedmg < 1 && basedmg != 0.0 && move.power > 0) (return 1) else (return kotlin.math.round(basedmg).toInt())
     }
 
+    /**Trigger the fight phase. Does not trigger end of turn. Attacker and defender are from the point of the player.*/
+    fun fight(att: Pokemon, def: Pokemon, yourMove: Move) {
+        log("Fight phase begins.")
+        if (att.owner == null || def.owner == null) {
+            log("A Pokemon was found to be ownerless. Fight phase aborting.")
+            return
+        }
+        val priList: MutableList<Pair<Pokemon, Move>> = mutableListOf()
+        val youSpd = att.getStat(Stat.SPD)
+        val oppSpd = def.getStat(Stat.SPD)
+        val oppMove = def.randomMove()
+        if (yourMove.priority > oppMove.priority) {
+            priList.addAll(listOf(Pair(att, yourMove), Pair(def, oppMove)))
+        } else if (oppMove.priority > yourMove.priority) {
+            priList.addAll(listOf(Pair(def, oppMove), Pair(att, yourMove)))
+        } else if (youSpd > oppSpd) {
+            priList.addAll(listOf(Pair(att, yourMove), Pair(def, oppMove)))
+        } else if (oppSpd > youSpd) {
+            priList.addAll(listOf(Pair(def, oppMove), Pair(att, yourMove)))
+        } else {
+            if (rng.nextInt(1,2) == 1) {
+                priList.addAll(listOf(Pair(att, yourMove), Pair(def, oppMove)))
+            } else {
+                priList.addAll(listOf(Pair(def, oppMove), Pair(att, yourMove)))
+            }
+        }
+        log("Move order determined: ${priList[0]}, ${priList[1]}.")
+        for ((poke, move) in priList) {
+            if (poke.faint) {
+                log("$poke has fainted, skipping move.")
+                continue
+            }
+            val dmg = dmgcalc(poke, poke.owner!!.getEnemy().getSelected(), move)
+            poke.useMove(poke.owner.getEnemy().getSelected(), specific = move)
+            }
+        log("Fight phase ends")
+        this.endOfTurn()
+        TextQueue.dump()
+        }
+
     fun start() {
         println("You are challenged to a battle!")
         println("Your opponent sends out ${this.opp.getSelected().name}!")
@@ -256,7 +320,7 @@ object Field {
         while (!this.end) {
             val nextTurn = this.menuHandlerMap[this.menu]!!()
             println()
-            if (nextTurn == true) endOfTurn() else if (nextTurn == null) println("Invalid input. Try again.\n")
+            if (nextTurn == null) println("Invalid input. Try again.\n")
         }
     }
 }

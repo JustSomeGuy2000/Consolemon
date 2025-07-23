@@ -115,7 +115,7 @@ data class AuditData(val field: Field?, val att: Pokemon?, val def: Pokemon?, va
 
 /**Represents events functions can subscribe to.*/
 enum class Audit(val desc: String) {
-    NEVER("Never called."), DMGCALC_WEATHER("Called when calculating the weather factor in damage calculation."), END_OF_TURN("Called at the end of the turn."), POKEMON_INIT_TYPES("Called when a Pokemon's type is being initialised."), POKEMON_CHANGE_ITEM("Called when a Pokemon's item is changed."), DMGCALC_BASE_POWER("Called when calculating the base power of a move."), MOVE_DISABLE_CHECK("Called when checking if a move should be usable or not."), DMGCALC_ACCURACY("Called when determining the accuracy of a move."), ON_SWAP_TO("Called when swapping, on the Pokemon swapped to."), DMGCALC_SET_OPP("Called when the move's target can be changed."), ON_REMOVE("Called when removed from the audit list."), DMGCALC_FINAL("Called after calculating the final damage."), GLOBAL_SOUND_CANCEL("Called when there is a chance to completely nullify sound-based moves."), PERSONAL_SOUND_CANCEL("Called when there is a chance to nullify sound-based moves for the Pokemon.")
+    NEVER("Never called."), DMGCALC_WEATHER("Called when calculating the weather factor in damage calculation."), END_OF_TURN("Called at the end of the turn."), POKEMON_INIT_TYPES("Called when a Pokemon's type is being initialised."), POKEMON_CHANGE_ITEM("Called when a Pokemon's item is changed."), DMGCALC_BASE_POWER("Called when calculating the base power of a move."), MOVE_DISABLE_CHECK("Called when checking if a move should be usable or not."), DMGCALC_ACCURACY("Called when determining the accuracy of a move."), ON_SWAP_TO("Called when swapping, on the Pokemon swapped to."), DMGCALC_SET_OPP("Called when the move's target can be changed."), ON_TIMEOUT("Called when this times out."), DMGCALC_FINAL("Called after calculating the final damage."), GLOBAL_SOUND_CANCEL("Called when there is a chance to completely nullify sound-based moves."), PERSONAL_SOUND_CANCEL("Called when there is a chance to nullify sound-based moves for the Pokemon."), VOLATILE_STATUS_CANCEL("Called when there is an opportunity to cancel the application of a volatile status."), DMGCALC_CHANGE_MOVE_TYPE("Called when there is a chance to change the move's type for the damage calculation."), BLOCK_SWAP("Called when there is an opportunity to block a swap.")
 }
 
 fun kotlin.random.Random.randLessOrEqualInt(lessThanOrEqual: Int, max: Int = 100, min: Int = 0): Boolean {
@@ -129,4 +129,35 @@ fun kotlin.random.Random.randLessOrEqualDouble(lessThanOrEqual: Double, max: Dou
 var verbose: Boolean = false
 fun log(message: String, prefix: String = "LOG: ", postfix: String = "") {
     if (verbose) println("$prefix$message$postfix")
+}
+
+/**What event a piece of text belongs to.*/
+enum class TextType(guide: String = "") {
+    EXECUTE_MOVE("{Pokemon} used {move}!"), TAKE_DAMAGE("{Pokemon} took {dmg} damage!"), CHOICE_SWAP_OUT("Come back, {Pokemon}!"), CHOICE_SWAP_IN("Come out, {Pokemon}!"), FAINT("{Pokemon} fainted!"), APPLY_NVS("{Pokemon} was {non-volatile statused}"), FAINT_SWAP_OUT, FAINT_SWAP_IN, PRINT_LAST, WEATHER_CHANGE, WEATHER_CLEAR, TERRAIN_CHANGE, TERRAIN_CLEAR, END_OF_TURN_DAMAGE
+}
+/**An object giving text metadata so a `TextQueue` can properly process it. The `after` argument is text that is always printed after the main text, no matter what, while `before` is the same but before.*/
+data class TextInfo(val type: TextType, val msg: String, val after: String? = null, val before: String? = null)
+/**A solution to the disorderliness of the text printing system. Since operations (and their corresponding text) occur out of order, the `TextQueue` takes in all the texts instead of direct printing. When the `TextQueue` is `dump()`ed, it automatically arranges the texts based on logical assumptions of order and prints them.*/
+object TextQueue {
+    /**A list that holds lists that hold `TextInfo`s. Sublists represent priority levels, essentially, while `TextInfo`s are arranged and printed according to them.*/
+    private val queue: MutableList<MutableList<TextInfo>> = mutableListOf()
+
+    /**Start a new priority level. This closes the previous level permanently.*/
+    fun startLevel() {
+        this.queue.add(mutableListOf())
+        log("New level (${this.queue.lastIndex}) added.")
+    }
+
+    /**Add a piece of text to the queue.*/
+    fun add(text: TextInfo) {
+        this.queue[this.queue.lastIndex].add(text)
+        log("New text added to TextQueue: '${text.msg}' with '${text.after}' after and '${text.before}'  before, with type ${text.type}")
+    }
+
+    /**Arrange and print all the texts in the queue.*/
+    fun dump() {
+        queue.clear()
+        log("TextQueue dumped and cleared.")
+        TODO()
+    }
 }

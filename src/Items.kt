@@ -1,8 +1,12 @@
 package jehr.experiments.pkmnbatsim3
 
 open class Item()
-data class HeldItem(val name: String, val info: List<AuditInfo>, val desc: String = "No information.", val extra: MutableMap<Any, Any> = mutableMapOf()): Item()
-data class UsableItem(val name: String, val info: auditFunc, val desc: String = "No information.", val extra: MutableMap<Any, Any> = mutableMapOf()): Item()
+data class HeldItem(val name: String, val info: List<AuditInfo>, val desc: String = "No information.", val extra: MutableMap<Any, Any> = mutableMapOf()): Item() {
+    override fun toString() = "Item(Held): ${this.name} (${this.hashCode()})"
+}
+data class UsableItem(val name: String, val info: auditFunc, val desc: String = "No information.", val extra: MutableMap<Any, Any> = mutableMapOf()): Item() {
+    override fun toString() = "Item(Usable): ${this.name} (${this.hashCode()})"
+}
 
 val arceusPlateAuditList = listOf(AuditInfo(Audit.NEVER, 0, ::arceusPlatesTypeChange), AuditInfo(Audit.DMGCALC_BASE_POWER, 0, ::arceusPlatesDMGBoost))
 

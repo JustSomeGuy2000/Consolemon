@@ -20,6 +20,10 @@ class MenuHandler(val target: Field) {
             println("All the opponent's Pokemon have fainted. You won!")
             this.target.end = true
             return false
+        } else if (this.target.you.team.all {it.faint}) {
+            println("ALl your Pokemon have fainted. You blacked out.")
+            this.target.end = true
+            return false
         }
         print("""Your Pokemon: ${you.name} ${you.getNameModifier()} ${you.getHPAsString()}
             |Opponent's Pokemon: ${opp.name} ${opp.getNameModifier()} ${opp.getHPAsString()}
@@ -98,8 +102,8 @@ class MenuHandler(val target: Field) {
                 return false }
             in disallowed -> println("You cannot choose that move. Choose another one.").also { return false }
             9 -> this.target.menu = Menus.MAIN
-            10 -> selected.useMove(this.target.opp.getSelected(), specific = AllMoves.STRUGGLE.value)
-            else -> { selected.useMove(this.target.opp.getSelected(), option-1)
+            10 -> this.target.fight(selected, this.target.opp.getSelected(), AllMoves.STRUGGLE.value)
+            else -> { this.target.fight(selected, this.target.opp.getSelected(), selected.moves[option-1])
                 this.target.menu = Menus.MAIN
                 return true }
         }
@@ -182,8 +186,13 @@ class MenuHandler(val target: Field) {
         } else {
             selected = AllPokemon.valueOf(opt.uppercase()).value
         }
-        println(selected?.dexInfoAsString() ?: "Pokemon not found")
-        print("Enter to continue...")
+        if (selected == null) {
+            println("Pokemon not found")
+            return false
+        }
+        println(selected.dexInfoAsString())
+        readln()
+        println(selected.movesetAsString())
         readln()
         this.target.menu = Menus.MAIN
         return false

@@ -25,6 +25,8 @@ class Move(val name: String,
     var disabled: Boolean = false
     var currentpp: Int = listOf(maxpp)[0] // copy maxpp value
 
+    override fun toString() = "Move: ${this.name} (${this.hashCode()})"
+
     /**Returns a prettified string of text, meant to be printed.*/
     fun moveInfoAsString(): String {
         val columnSep: String = "        "
@@ -102,10 +104,10 @@ private fun futureSightExecute(data: AuditData, wrap: AuditWrapper) {
     val att: Pokemon? = wrap.extra["att"] as? Pokemon
     if (att !is Pokemon) return
     if (data.field !is Field) return
-    val dmg = data.field.dmgcalc(att, data.field.opp.getSelected(), futureSight)
-    data.field.opp.getSelected().dealDamage(dmg)
+    val dmg = data.field.dmgcalc(att, att.owner!!.getEnemy().getSelected(), futureSight)
+    att.owner.getEnemy().getSelected().dealDamage(dmg)
 }
-private fun futureSightPrepare(field: Field, att: Pokemon, def: Pokemon, dmg: Int) { field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_REMOVE, 0, ::futureSightExecute), att, futureSight, mapOf("att" to att), 2.0f)) }
+private fun futureSightPrepare(field: Field, att: Pokemon, def: Pokemon, dmg: Int) { field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_TIMEOUT, 0, ::futureSightExecute), att, futureSight, mapOf("att" to att), 2.0f)) }
 private fun recoverHeal(field: Field, att: Pokemon, def: Pokemon, dmg: Int) { att.heal(att.getStat(Stat.HP).roundToInt()) }
 private fun recharge1After(field: Field, att: Pokemon, def: Pokemon, dmg: Int) { att.cooldown = 1 }
 private fun perishSongExecute(data: AuditData, wrap: AuditWrapper) {
@@ -113,10 +115,10 @@ private fun perishSongExecute(data: AuditData, wrap: AuditWrapper) {
     target.kill()
 }
 private fun perishSongPrepare(field: Field, att: Pokemon, def: Pokemon, dmg: Int) {
-    field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_REMOVE, 0, ::perishSongExecute), att, perishSong, extra = mapOf("target" to field.you.getSelected()), time = 3.0f))
+    field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_TIMEOUT, 0, ::perishSongExecute), att, perishSong, extra = mapOf("target" to field.you.getSelected()), time = 3.0f))
     att.applyVolatileStatuses(VolatileStatus.PERISH_SONG, 3)
     if (!(field.audit(Audit.PERSONAL_SOUND_CANCEL, att, def, perishSong, false) as Boolean)) {
-        field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_REMOVE, 0, ::perishSongExecute), def, perishSong, extra = mapOf("target" to field.opp.getSelected()), time = 3.0f))
+        field.addAuditResponder(AuditWrapper(AuditInfo(Audit.ON_TIMEOUT, 0, ::perishSongExecute), def, perishSong, extra = mapOf("target" to att.owner!!.getEnemy().getSelected()), time = 3.0f))
         def.applyVolatileStatuses(VolatileStatus.PERISH_SONG, 3)
     }
 }
@@ -126,6 +128,11 @@ fun perishSongRemove(field: Field, target: Pokemon) {
             if (wrap.owner == target && wrap.origin == perishSong) field.removeAuditResponder(wrap)
         }
     }
+}
+fun judgementChangeType(data: AuditData, wrap: AuditWrapper): Type {
+    val item = data.att?.getItemInfo()?.first
+    if (item == null || item.info != arceusPlateAuditList) return Type.NORMAL
+    return (item.extra["type"] as? Type) ?: Type.NORMAL
 }
 
 private val tackle = Move("Tackle", 40, 100, Type.NORMAL, MoveType.PHYS, true, 30, "The most basic move.")
@@ -142,7 +149,8 @@ private val futureSight = Move("Future Sight", 120, 100, Type.PSYCHIC, MoveType.
 private val recover = Move("Recover", -1, 100, Type.NORMAL, MoveType.STATUS, false, 5, "Spontaneously induce rapid cell growth to recover (he said the thing!) 50% of yout HP.", side = ::recoverHeal)
 private val hyperBeam = Move("Hyper Beam", 150, 90, Type.NORMAL, MoveType.SPEC, false, 5, "Fire a devastating laser at the opponent all anime-style. Requires one turn of recharge.", side = ::recharge1After)
 private val perishSong = Move("Perish Song", -1, 100, Type.NORMAL, MoveType.STATUS, false, 5, "Sing a malevolent song. In 3 turns, all who have heard it and are still afflicted with it will die on the spot.", side = ::perishSongPrepare, vocal = true)
+private val judgement = Move("Judgement", 100, 100, Type.NORMAL, MoveType.SPEC, false, 10, "Call upon the power of Arceus itself to rain destruction down on opponents.", transients = listOf(AuditInfo(Audit.DMGCALC_CHANGE_MOVE_TYPE, 0, ::judgementChangeType)))
 
 enum class AllMoves(val value: Move) {
-    TACKLE(tackle), FLAMETHROWER(flamethrower), SEISMIC_TOSS(seismicToss), COSMIC_POWER(cosmicPower), GRAVITY(gravity), STRUGGLE(struggle), EARTH_POWER(earthPower), HYPER_VOICE (hyperVoice), EXTREME_SPEED(extremeSpeed), HEALING_WISH(healingWish), FUTURE_SIGHT(futureSight), RECOVER(recover), HYPER_BEAM(hyperBeam)
+    TACKLE(tackle), FLAMETHROWER(flamethrower), SEISMIC_TOSS(seismicToss), COSMIC_POWER(cosmicPower), GRAVITY(gravity), STRUGGLE(struggle), EARTH_POWER(earthPower), HYPER_VOICE (hyperVoice), EXTREME_SPEED(extremeSpeed), HEALING_WISH(healingWish), FUTURE_SIGHT(futureSight), RECOVER(recover), HYPER_BEAM(hyperBeam), PERISH_SONG(perishSong), JUDGEMENT(judgement)
 }

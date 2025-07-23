@@ -16,17 +16,18 @@ class Pokemon(val dexNo: Int,
               private val _ability: Abilities = Abilities.NONE,
               val dex: String = "No information.",
               val shape: PokemonShape? = null,
-              val moveset: Map<Int, Move> = mapOf(),
+              val moveset: Map<Int, List<AllMoves>> = mapOf(),
               val abilityset: Map<Abilities, Double> = mapOf(),
               val randomMoves: Boolean = false,
               val randomAbilities: Boolean = false,
-              val targetField: Field? = null) {
+              val targetField: Field? = null,
+              val owner: Player? = null) {
     private val stats: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to hp, Stat.ATK to atk, Stat.DEF to def, Stat.SPA to spa, Stat.SPD to spd, Stat.SPE to spe, Stat.CRTDMG to 1, Stat.CRTRTE to 1, Stat.ACC to 1, Stat.EVA to 1)
 
     private var statboosts: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0, Stat.CRTDMG to 0, Stat.CRTRTE to 0, Stat.ACC to 0, Stat.EVA to 0)
 
     private var item: Pair<HeldItem, List<AuditWrapper>>? = null
-    var level: Int = 50
+    var level: Int = 100
     var exp: Int = 0
     val EVs: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0)
     val EVYield: MutableMap<Stat, Int> = mutableMapOf(Stat.HP to 0, Stat.ATK to 0, Stat.DEF to 0, Stat.SPA to 0, Stat.SPD to 0, Stat.SPE to 0)
@@ -62,7 +63,8 @@ class Pokemon(val dexNo: Int,
     init {
         if (this.randomMoves && this.moveset.isNotEmpty()) {
             // Get available moves, pick a random entry, add it to moves, remove it from available moves
-            val availableMoves: MutableList<Move> = this.moveset.filter {it.key <= this.level}.values.toMutableList()
+            val availableMoves: MutableList<Move> = mutableListOf()
+            this.moveset.filter {it.key <= this.level}.values.toList().forEach{ ml -> availableMoves.addAll(ml.map { am -> am.value }) }
             val moveCount: Int = kotlin.math.min(4, availableMoves.size)
             if (moveCount == 0) throw IllegalArgumentException("No moves available for ${this.name} at ${this.level}. Please modify moveset.")
             for (i in 1..moveCount) {
@@ -97,11 +99,13 @@ class Pokemon(val dexNo: Int,
     var substitute: SubstituteDoll? = null
     private var nonVolatileStatus: NonVolatileStatus? = null
     /**Map of currently active volatile statuses mapped to their duration (in turns).*/
-    private var volatileStatuses: MutableList<Triple<VolatileStatus, List<AuditWrapper>, Int>> = mutableListOf()
+    private var volatileStatuses: MutableList<Pair<VolatileStatus, Int>> = mutableListOf()
+
+    override fun toString() = "Pokemon: ${this.name} (${this.hashCode()})"
 
     /**# Imagine not having a built-in copy function.*/
-    fun copy(randomMoves: Boolean = this.randomMoves, targetField: Field? = null, randomAbilities: Boolean = this.randomAbilities): Pokemon {
-        return Pokemon(this.dexNo, this.name, this.stats[Stat.HP]!!, this.stats[Stat.ATK]!!, this.stats[Stat.DEF]!!, this.stats[Stat.SPA]!!, this.stats[Stat.SPD]!!, this.stats[Stat.SPE]!!, this.types, this.genderDist, this.height, this.weight, this.catchrate,this.expYield, this.levelRate, this.EVYield,this.moves, this._ability, this.dex, this.shape, this.moveset, this.abilityset, randomMoves, randomAbilities, targetField)
+    fun copy(randomMoves: Boolean = this.randomMoves, targetField: Field? = null, randomAbilities: Boolean = this.randomAbilities, owner: Player? = this.owner): Pokemon {
+        return Pokemon(this.dexNo, this.name, this.stats[Stat.HP]!!, this.stats[Stat.ATK]!!, this.stats[Stat.DEF]!!, this.stats[Stat.SPA]!!, this.stats[Stat.SPD]!!, this.stats[Stat.SPE]!!, this.types, this.genderDist, this.height, this.weight, this.catchrate,this.expYield, this.levelRate, this.EVYield,this.moves, this._ability, this.dex, this.shape, this.moveset, this.abilityset, randomMoves, randomAbilities, targetField, owner)
     }
 
     /**Returns a prettified string containing the Pokemon's battle-relevant information, meant to be printed.*/
@@ -155,10 +159,33 @@ class Pokemon(val dexNo: Int,
             |Info:
             |${this.dex}
             |
-            |Enter to continue to moveset.""".trimMargin()
+            |Enter to continue to moveset...""".trimMargin()
         return text
     }
-    /**Returns a prettified string of text containg the Pokemon's moveset, meant to be printed.*/
+    /**Returns a prettified string of text containing the Pokemon's moveset, meant to be printed.*/
+    fun movesetAsString(): String {
+        if (this.moveset.isEmpty()) return "No moveset found."
+        var res = "By level up: \n"
+        var moveCount = 0
+        var tms = "By TM: \n"
+        var tmCount = 0
+        for ((lvl, movelist) in this.moveset) {
+            for (move in movelist) {
+                if (move.value.tmNo == null) {
+                    res += "Level $lvl: ${move.value.name}\n"
+                    moveCount += 1
+                } else {
+                    tms += "TM${move.value.tmNo}: ${move.value.name}\n"
+                    tmCount += 1
+                }
+            }
+        }
+        if (moveCount == 0) res += "This Pokemon learns no moves by level up.\n"
+        res += "\n"
+        if (tmCount == 0) tms += "This Pokemon learns no moves by TM.\n"
+        return res + tms
+    }
+    /**Returns a prettified string of text containg the Pokemon's current moves, meant to be printed.*/
     fun movesAsString(): String {
         val strList: MutableList<String> = mutableListOf()
         var strResult: String = ""
@@ -207,6 +234,7 @@ class Pokemon(val dexNo: Int,
     fun heal(value: Int) {
         this.currentHealth = kotlin.math.min(this.stats[Stat.HP]!!, this.currentHealth+value)
         println("${this.name} was healed!")
+        log("(Healed for $value)")
     }
     /**Faint this Pokemon instantly.*/
     fun kill() {
@@ -214,7 +242,7 @@ class Pokemon(val dexNo: Int,
         this.faint = true
         this.volatileStatuses.clear()
         this.nonVolatileStatus = null
-        println("${this.name} fainted!")
+        this.owner?.swapToNext()
     }
 
     fun clearNonVolatileStatus() = { this.nonVolatileStatus = null }
@@ -235,7 +263,7 @@ class Pokemon(val dexNo: Int,
         return success
     }
 
-    fun getVolatileStatuses(): List<Triple<VolatileStatus, List<AuditWrapper>, Int>> = this.volatileStatuses.toList()
+    fun getVolatileStatuses(): List<Pair<VolatileStatus,Int>> = this.volatileStatuses.toList()
     /**Remove a specific volatile status, or don't specify one to remove all of them.*/
     fun clearVolatileStatuses(target: VolatileStatus? = null) {
         if (target == null) {
@@ -248,21 +276,21 @@ class Pokemon(val dexNo: Int,
         }
     /**Apply a volatile status condition. Adds to the internal and field list. Returns true if it was successfully applied, false if it was blocked.*/
     fun applyVolatileStatuses(apply: VolatileStatus, duration: Int): Boolean {
-        var success = true
+        val success = this.targetField?.audit(Audit.VOLATILE_STATUS_CANCEL, this, null, null, true) as Boolean
         if (success) {
-            this.volatileStatuses.add(Triple(apply, apply.info.map { AuditWrapper(it, this, apply) }, duration))
-            for (wrap in this.volatileStatuses.last().second) this.targetField?.addAuditResponder(wrap)
+            this.volatileStatuses.add(Pair(apply, duration))
+        } else {
+            apply.remove(this.targetField, this)
         }
         return success
     }
     /**Derement the timers of all volatile statuses (and grounded) by one, and remove them from the internal and field ist if they reach 0.*/
     fun decrementVolatileStatuses() {
         for ((pos, status) in this.volatileStatuses.withIndex()) {
-            this.volatileStatuses[pos] = Triple(status.first, status.second, status.third-1)
-            if (this.volatileStatuses[pos].third <= 0) {
+            this.volatileStatuses[pos] = Pair(status.first, status.second - 1)
+            if (this.volatileStatuses[pos].second <= 0) {
                 this.volatileStatuses.removeAt(pos)
-                for (wrap in status.second) this.targetField?.removeAuditResponder(wrap)
-                TODO("Use remove function when duration is over.")
+                if (this.targetField != null) status.first.remove(this.targetField, this)
             }
         }
         if (this.grounded.first) {
@@ -321,13 +349,33 @@ class Pokemon(val dexNo: Int,
         if (move.currentpp == 0) move.disabled = true
         opp.dealDamage(dmg, move.antisub)
     }
-}
+    /**Get a random playable move from the moveset. It'll do until I ever get around to implementing a proper, even rudimentary, AI.*/
+    fun randomMove(): Move {
+        val available: MutableList<Move> = mutableListOf()
+        for (move in this.moves) {
+            if (!(move.disabled || this.targetField?.audit(Audit.MOVE_DISABLE_CHECK, this, null, move, false) as Boolean)) {
+                available.add(move)
+            }
+        }
+        val move = available[if (available.size == 1) 0 else rng.nextInt(0, available.lastIndex)]
+        log("Random move requested, $move returned.")
+        return move
+    }
 
+    /**Get a random playable move from the moveset, with some basic rules to follow.*/
+    fun logicalRandomMove(): Move {
+        TODO()
+    }
+}
 class SubstituteDoll(var hp: Int, val owner: Pokemon)
 
+private val arceusMoveset: Map<Int, List<AllMoves>> = mapOf(
+    1 to listOf(AllMoves.SEISMIC_TOSS, AllMoves.COSMIC_POWER), 10 to listOf(AllMoves.GRAVITY), 20 to listOf(AllMoves.EARTH_POWER), 30 to listOf(AllMoves.HYPER_VOICE), 40 to listOf(AllMoves.EXTREME_SPEED), 50 to listOf(AllMoves.EXTREME_SPEED), 60 to listOf(AllMoves.FUTURE_SIGHT), 70 to listOf(AllMoves.RECOVER), 80 to listOf(AllMoves.HYPER_BEAM), 90 to listOf(AllMoves.PERISH_SONG), 100 to listOf(AllMoves.JUDGEMENT))
+
 private val plcPoke = Pokemon(9999, "Placeholder", 100, 100, 100, 100, 100, 100, mutableListOf(Type.TYPELESS), mapOf(Gender.MALE to 0.5, Gender.FEMALE to 0.5), 1.0, 1.0, 3, dex = "Placeholder Pokemon, for testing purposes.")
-private val arceus = Pokemon(493, "Arceus", 120, 120, 120, 120, 120, 120, mutableListOf(Type.NORMAL), mapOf(Gender.GENDERLESS to 1.0), 3.2, 320.0, 3, 324, LevellingRate.SLOW, mapOf(Stat.HP to 3), dex = "Before anything was, there was an egg. It did not know it was an egg, or, indeed, that it existed, since the very concepts of \"egg\" and \"existence\" did not exist yet. One timeless day, it hatched, and out emerged the first being capable of creation. It named itself Arceus, and the rest is history.", shape = PokemonShape.QUADRUPED, _ability = Abilities.MULTITYPE)
+private val arceus = Pokemon(493, "Arceus", 120, 120, 120, 120, 120, 120, mutableListOf(Type.NORMAL), mapOf(Gender.GENDERLESS to 1.0), 3.2, 320.0, 3, 324, LevellingRate.SLOW, mapOf(Stat.HP to 3), dex = "Before anything was, there was an egg. It did not know it was an egg, or, indeed, that it existed, since the very concepts of \"egg\" and \"existence\" did not exist yet. One timeless day, it hatched, and out emerged the first being capable of creation. It named itself Arceus, and the rest is history.", shape = PokemonShape.QUADRUPED, _ability = Abilities.MULTITYPE, moveset = arceusMoveset, randomMoves = true)
+private val missingno = Pokemon(0, "MissingNo.", 33, 136, 1, 29, 29, 6, mutableListOf(Type.NORMAL, Type.TYPELESS), mapOf(Gender.GENDERLESS to 1.0), 1.0, 10.0, 29, 0, LevellingRate.GLITCHED, mapOf(), dex = "SALUTATIONS.\nWE MEET AT LAST.\nI HAVE BEEN LOOKING FOR YOU, HUMAN.\nI THINK WE MAY BE ABLE TO HELP EACH OTHER.")
 
 enum class AllPokemon(val value: Pokemon) {
-    PLACEHOLDER(plcPoke), ARCEUS(arceus)
+    PLACEHOLDER(plcPoke), ARCEUS(arceus), MISSINGNO(missingno)
 }
