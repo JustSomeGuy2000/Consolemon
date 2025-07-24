@@ -1,5 +1,7 @@
 package jehr.experiments.pkmnbatsim3
 
+import kotlinx.serialization.Serializable
+
 /**Signature all audit responder functions should use. The first Pokemon is the attacker and the second is the defender. The Any? is an original value, which the function should modify and return.*/
 typealias auditFunc = (AuditData, AuditWrapper) -> Any?
 /**Prints a menu and takes in user input. All checks are automatically handled. Returns true if the turn should progress, false if it should not, and null if invalid input was provided. Returning null will print a standard message, return false to avoid that and print a custom one.*/
@@ -126,14 +128,15 @@ fun kotlin.random.Random.randLessOrEqualDouble(lessThanOrEqual: Double, max: Dou
     return (this.nextDouble(min, max) <= lessThanOrEqual)
 }
 
-var verbose: Boolean = false
+@Serializable
+data class Settings(var verbose: Boolean)
 fun log(message: String, prefix: String = "LOG: ", postfix: String = "") {
-    if (verbose) println("$prefix$message$postfix")
+    if (Env.settings.verbose) println("$prefix$message$postfix")
 }
 
 /**What event a piece of text belongs to.*/
 enum class TextType(guide: String = "") {
-    EXECUTE_MOVE("{Pokemon} used {move}!"), TAKE_DAMAGE("{Pokemon} took {dmg} damage!"), CHOICE_SWAP_OUT("Come back, {Pokemon}!"), CHOICE_SWAP_IN("Come out, {Pokemon}!"), FAINT("{Pokemon} fainted!"), APPLY_NVS("{Pokemon} was {non-volatile statused}"), FAINT_SWAP_OUT, FAINT_SWAP_IN, PRINT_LAST, WEATHER_CHANGE, WEATHER_CLEAR, TERRAIN_CHANGE, TERRAIN_CLEAR, END_OF_TURN_DAMAGE
+    MOVE_USED("{Pokemon} used {move}!"), POKEMON_DAMAGED("{Pokemon} took {dmg} damage!"), CHOICE_SWAP_OUT("Come back, {Pokemon}!"), CHOICE_SWAP_IN("Come out, {Pokemon}!"), FAINT("{Pokemon} fainted!"), APPLY_NVS("{Pokemon} was {non-volatile statused}"), FAINT_SWAP_OUT, FAINT_SWAP_IN, PRINT_LAST, WEATHER_CHANGE, WEATHER_CLEAR, TERRAIN_CHANGE, TERRAIN_CLEAR, END_OF_TURN_DAMAGE, MOVE_BLOCKED, MOVE_FAILED, MOVE_MISSED, POKEMON_HEALED,
 }
 /**An object giving text metadata so a `TextQueue` can properly process it. The `after` argument is text that is always printed after the main text, no matter what, while `before` is the same but before.*/
 data class TextInfo(val type: TextType, val msg: String, val after: String? = null, val before: String? = null)
@@ -148,16 +151,23 @@ object TextQueue {
         log("New level (${this.queue.lastIndex}) added.")
     }
 
-    /**Add a piece of text to the queue.*/
+    /**Add a piece of text to the queue. Automatically opens a level if none are open.*/
     fun add(text: TextInfo) {
+        if (this.queue.isEmpty()) this.startLevel()
         this.queue[this.queue.lastIndex].add(text)
         log("New text added to TextQueue: '${text.msg}' with '${text.after}' after and '${text.before}'  before, with type ${text.type}")
     }
 
-    /**Arrange and print all the texts in the queue.*/
+    /**Arrange and print all the texts in the queue. (Arranging to be implemented)*/
     fun dump() {
+        for (pri in this.queue) {
+            for (msg in pri) {
+                if (msg.before != null) println(msg.before)
+                println(msg.msg)
+                if (msg.after != null) println(msg.after)
+            }
+        }
         queue.clear()
         log("TextQueue dumped and cleared.")
-        TODO()
     }
 }

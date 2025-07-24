@@ -1,6 +1,44 @@
 package jehr.experiments.pkmnbatsim3
 
 import kotlin.random.Random.Default as rng
+import kotlinx.serialization.*
+import java.io.*
+import java.util.Scanner
+
+object Env {
+    lateinit var field: Field
+    var gameProgressing: Boolean = false
+    private var menuHandler = EnvMenuHandler(this)
+    private val menuHandlerMap: Map<Menus,() -> Unit> = mapOf(Menus.START to this.menuHandler::startMenuHandler)
+    var menu: Menus = Menus.START
+    var quit: Boolean = false
+    val settingsFile = File("data/settings.json")
+    val settings = loadSettings()
+
+    fun loadSettings(): Settings {
+        val settingsReader = Scanner(this.settingsFile)
+        //*github.com/Kotlin/kotlinx.serialization/blob/master/docs/basic-serialization.md#json-encoding
+        return Settings(false)
+    }
+
+    fun updateSettings() {
+        val settingsWriter = FileWriter(this.settingsFile)
+    }
+
+    fun startEnv() {
+        while (!this.quit) {
+            this.menuHandlerMap[this.menu]!!()
+        }
+    }
+
+    fun startGame() {
+        this.gameProgressing = true
+        this.field = Field()
+        this.field.you = Player("You", this.field)
+        this.field.opp = Player("Rival", this.field)
+        this.field.start()
+    }
+}
 
 class Player(val name: String, val field: Field, team: MutableList<AllPokemon> = mutableListOf(AllPokemon.PLACEHOLDER, AllPokemon.ARCEUS, AllPokemon.MISSINGNO
 ), var selected: Int = 0) {
@@ -21,11 +59,12 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
         if (to > this.team.lastIndex || this.team[to].faint) throw IllegalArgumentException("Attempted to access fainted pokemon or out of bounds value: $to")
         this.getSelected().clearVolatileStatuses()
         this.getSelected().deregister()
-        println("Come back, ${this.getSelected().name}!")
+        TextQueue.add(TextInfo(TextType.CHOICE_SWAP_IN, "Come back, ${this.getSelected().name}!"))
         this.selected = to
-        println("You're up, ${this.getSelected().name}!")
+        TextQueue.add(TextInfo(TextType.CHOICE_SWAP_OUT, "You're up, ${this.getSelected().name}!"))
         this.field.audit(Audit.ON_SWAP_TO, null, null, null, to)
         this.getSelected().register()
+        TextQueue.dump()
     }
     /**Swap to the next Pokemon in line, or don't swap if it is the only Pokemon. Returns the swapped into Pokemon, or null, if nothing was.*/
     fun swapToNext(): Pokemon? {
@@ -76,7 +115,7 @@ class Player(val name: String, val field: Field, team: MutableList<AllPokemon> =
     }
 }
 
-object Field {
+class Field() {
     val menuHandler = MenuHandler(this)
     /**The currently selected menu.*/
     var menu: Menus = Menus.MAIN
@@ -101,6 +140,7 @@ object Field {
         this.you.decrementVolatileStatuses()
         this.opp.decrementVolatileStatuses()
         this.turn++
+        TextQueue.dump()
         println("Current turn: ${this.turn}")
     }
 
@@ -133,7 +173,13 @@ object Field {
 
     /**Remove an audit responder function from the audit list.*/
     fun removeAuditResponder(wrapper: AuditWrapper, clean: Boolean = true) {
-        this.audits[wrapper.info.priority].remove(wrapper)
+        val listIter = this.audits[wrapper.info.priority].iterator()
+        while (listIter.hasNext()) {
+            if (listIter.next() == wrapper) {
+                listIter.remove()
+                break
+            }
+        }
         log("Removed from ${wrapper.info.priority}: Audit responder $wrapper ")
         if (clean) this.cleanAuditList()
     }
@@ -141,14 +187,16 @@ object Field {
     /**Decrement all audit responder functions and optionally clean up the audit list.*/
     fun decrementAudits(clean: Boolean = true) {
         for (pri in this.audits) {
+            val removeList: MutableList<AuditWrapper> = mutableListOf()
             for (wrapper in pri) {
                 wrapper.time -= 1.0f
                 if (wrapper.time <= 0.0f) {
-                    pri.remove(wrapper)
+                    removeList.add(wrapper)
                     log("Timed out and removed: Audit responder $wrapper")
+                    if (wrapper.info.event == Audit.ON_TIMEOUT) wrapper.respond(AuditData(this, null, null, null, null))
                 }
-                if (wrapper.info.event == Audit.ON_TIMEOUT) wrapper.respond(AuditData(this, null, null, null, null))
             }
+            pri.removeAll(removeList)
         }
         if (clean) this.cleanAuditList()
     }
@@ -178,7 +226,11 @@ object Field {
             }
         }
         this.weather = to
-        println(if (to != null) "The weather changed to ${to.fullname}" else "The weather cleared.")
+        if (to != null) {
+            TextQueue.add(TextInfo(TextType.WEATHER_CHANGE, "The weather changed to ${to.fullname}."))
+        } else {
+            TextQueue.add(TextInfo(TextType.WEATHER_CLEAR, "The weather cleared."))
+        }
         if (to != null) {
             for (info in this.weather!!.effects) {
                 this.addAuditResponder(info)
@@ -195,12 +247,14 @@ object Field {
             }
         }
         this.terrain = to
-        println(if (to != null) "The terrain changed to ${to.fullname}" else "The terrain cleared.")
         if (to != null) {
+            TextQueue.add(TextInfo(TextType.TERRAIN_CHANGE, "The terrain changed to ${to.fullname}"))
             for (wrapper in this.terrain!!.effects) {
                 this.addAuditResponder(wrapper)
             }
-        }
+        } else {
+                TextQueue.add(TextInfo(TextType.TERRAIN_CLEAR, "The terrain cleared."))
+            }
         this.cleanAuditList()
     }
 
@@ -208,12 +262,12 @@ object Field {
     fun dmgcalc(attacker: Pokemon, defender: Pokemon, move: Move): Int {
         log("Damage calculation begins with: Attacker: $attacker, defender: $defender, move: $move")
         if (move.vocal && this.audit(Audit.GLOBAL_SOUND_CANCEL, attacker, defender, move, false) as Boolean) {
-            print("The move was blocked!")
+            TextQueue.add(TextInfo(TextType.MOVE_BLOCKED, "The move was blocked!"))
             return 0
         }
         val attacker: Pokemon = this.audit(Audit.DMGCALC_SET_OPP, attacker, defender, move, attacker) as Pokemon
         if (rng.nextInt(1, 100) > this.audit(Audit.DMGCALC_ACCURACY, attacker, defender, move, move.acc) as Int && move.movetype != MoveType.STATUS) {
-            println("${attacker.name} missed!")
+            TextQueue.add(TextInfo(TextType.MOVE_MISSED, "It missed!"))
             return 0
         }
         val transientAudits: MutableList<AuditWrapper> = mutableListOf()
@@ -322,6 +376,7 @@ object Field {
             println()
             if (nextTurn == null) println("Invalid input. Try again.\n")
         }
+        Env.gameProgressing = false
     }
 }
 
@@ -336,7 +391,5 @@ fun buildDex(): Map<Int, Pokemon> {
 val dexMap: Map<Int, Pokemon> = buildDex()
 
 fun main() {
-    Field.you = Player("You", Field)
-    Field.opp = Player("Rival", Field)
-    Field.start()
+    Env.startEnv()
     }

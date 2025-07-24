@@ -132,7 +132,7 @@ class MenuHandler(val target: Field) {
 
     fun settingsMenuHandler(): Boolean? {
         print("""Change settings:
-            |1. Verbosity: ${if (verbose) "On" else "Off"}
+            |1. Verbosity: ${if (Env.settings.verbose) "On" else "Off"}
             |9. Back
             |> 
         """.trimMargin())
@@ -156,8 +156,8 @@ class MenuHandler(val target: Field) {
         if (!this.validateOpt(option, 1, 3)) return null
         val opt: Int = option.toInt()
         when (opt) {
-            1 -> verbose = true
-            2 -> verbose = false
+            1 -> Env.settings.verbose = true
+            2 -> Env.settings.verbose = false
             3 -> {}
         }
         this.target.menu = Menus.SETTINGS
@@ -199,6 +199,37 @@ class MenuHandler(val target: Field) {
     }
 }
 
+class EnvMenuHandler(val target: Env) {
+    fun startMenuHandler() {
+        print("""
+            |                    WELCOME         TO
+            |   _____                      _                            
+            |  / ____|                    | |                           
+            | | |     ___  _ __  ___  ___ | | ___ _ __ ___   ___  _ __  
+            | | |    / _ \| '_ \/ __|/ _ \| |/ _ \ '_ ` _ \ / _ \| '_ \ 
+            | | |___| (_) | | | \__ \ (_) | |  __/ | | | | | (_) | | | |
+            |  \_____\___/|_| |_|___/\___/|_|\___|_| |_| |_|\___/|_| |_|
+            |               
+            |1. START GAME          2. CONFIGURE TEAM
+            |3. POKEDEX             4. ITEM DEX
+            |5. SETTINGS            6. QUIT
+            |INPUT OPTION >>> """.trimMargin())
+        val opt = readln()
+        when (opt) {
+            "1" -> this.target.startGame()
+            "2" -> TODO()
+            "3" -> TODO()
+            "4" -> TODO()
+            "5" -> TODO()
+            "6" -> {
+                println("Good day.")
+                this.target.quit = true
+            }
+            else -> println("Invalid input, please try again.")
+        }
+    }
+}
+
 enum class Menus(val fullname: String) {
-    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu"), SETTINGS_VERBOSITY("Verbosity Settings Menu"), DEX("Pokedex CLI")
+    MAIN("Main Menu"), SWAP("Swap Menu"), FIGHT("Fight Menu"), INFO("Info Menu"), SETTINGS("Settings Menu"), SETTINGS_VERBOSITY("Verbosity Settings Menu"), DEX("Pokedex CLI"), START("Start Menu")
 }

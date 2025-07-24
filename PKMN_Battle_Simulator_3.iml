@@ -11,5 +11,7 @@
     <orderEntry type="jdk" jdkName="openjdk-24" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
+    <orderEntry type="library" name="jetbrains.kotlinx.coroutines.core" level="application" />
+    <orderEntry type="library" name="jetbrains.kotlinx.serialization.json" level="application" />
   </component>
 </module>

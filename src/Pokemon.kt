@@ -93,7 +93,8 @@ class Pokemon(val dexNo: Int,
     }
     var faint: Boolean = false
         set(value) {field = value
-            if (value) println("${this.name} fainted!")}
+            if (value) TextQueue.add(TextInfo(TextType.FAINT, "${this.name} fainted!"))
+        }
     var cooldown: Int = 0
     var grounded: Pair<Boolean, Int> = false to 0
     var substitute: SubstituteDoll? = null
@@ -203,7 +204,6 @@ class Pokemon(val dexNo: Int,
     fun getStat(retrieve: Stat): Double {
         return this.stats[retrieve]!! * multiplier_ref[retrieve]!![this.statboosts[retrieve]!!]!!
     }
-
     fun getBaseStat(retrieve: Stat): Int = this.stats[retrieve]!!
     fun getStatBoostLevel(retrieve: Stat): Int = this.statboosts[retrieve]!!
     fun getCurrentHealth(): Int = this.currentHealth
@@ -228,13 +228,13 @@ class Pokemon(val dexNo: Int,
         if (this.currentHealth == 0) {
             this.kill()
         }
-        println("${this.name} took $value damage!")
+        TextQueue.add(TextInfo(TextType.POKEMON_DAMAGED, "${this.name} took $value damage!"))
     }
     /**Heal the Pokemon. Capped at max HP.*/
     fun heal(value: Int) {
         this.currentHealth = kotlin.math.min(this.stats[Stat.HP]!!, this.currentHealth+value)
-        println("${this.name} was healed!")
         log("(Healed for $value)")
+        TextQueue.add(TextInfo(TextType.POKEMON_HEALED, "${this.name} was healed!"))
     }
     /**Faint this Pokemon instantly.*/
     fun kill() {
@@ -258,7 +258,7 @@ class Pokemon(val dexNo: Int,
         }
         if (success) {
             this.nonVolatileStatus = apply
-            println("${this.name} was ${apply.action}!")
+            TextQueue.add(TextInfo(TextType.APPLY_NVS, "${this.name} was ${apply.action}!"))
         }
         return success
     }
@@ -327,6 +327,7 @@ class Pokemon(val dexNo: Int,
         } else {
             this.item = null
         }
+        log("Item of $this set to $to.")
     }
 
     /**Registers all of this's audit responders to the field. Registers: ability, item, volatile statuses?.*/
@@ -343,7 +344,7 @@ class Pokemon(val dexNo: Int,
     fun useMove(opp: Pokemon, moveNumber: Int = 0, specific: Move? = null) {
         var move: Move = this.moves[moveNumber]
         if (specific is Move) move = specific
-        println("${this.name} used ${move.name}!")
+        TextQueue.add(TextInfo(TextType.MOVE_USED, "${this.name} used ${move.name}!"))
         val dmg = this.targetField!!.dmgcalc(this, opp, move)
         move.currentpp -= 1
         if (move.currentpp == 0) move.disabled = true

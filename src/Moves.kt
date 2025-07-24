@@ -124,7 +124,9 @@ private fun perishSongPrepare(field: Field, att: Pokemon, def: Pokemon, dmg: Int
 }
 fun perishSongRemove(field: Field, target: Pokemon) {
     for (level in field.audits) {
-        for (wrap in level) {
+        val levelIter = level.iterator()
+        if (levelIter.hasNext()) {
+            val wrap = levelIter.next()
             if (wrap.owner == target && wrap.origin == perishSong) field.removeAuditResponder(wrap)
         }
     }
@@ -145,7 +147,7 @@ private val earthPower = Move("Earth Power", 90, 100, Type.GROUND, MoveType.SPEC
 private val hyperVoice = Move("Hyper Voice", 90, 100, Type.NORMAL, MoveType.SPEC, false, 10, "An earsplitting screech that pierces through Substitutes.", antisub = true, vocal = true)
 private val extremeSpeed = Move("Extreme Speed", 80, 100, Type.NORMAL, MoveType.PHYS, true, 5, "No, its not Swift.", priority = 2)
 private val healingWish = Move("Healing Wish", -1, 100, Type.PSYCHIC, MoveType.STATUS, false, 10, "The epitome of useless heroic scrifices. Kill yourself but ensure the next Pokemon that comes in is healed to full and cleared of all status conditions.", side = ::youShouldKillYouselfNow, audits = listOf(AuditInfo(Audit.ON_SWAP_TO, 0, ::healingWishEffect)))
-private val futureSight = Move("Future Sight", 120, 100, Type.PSYCHIC, MoveType.SPEC, false, 10, "Foresee an attack in the future. And execute it, since its your attack apparently. Self-fulfilling prophecy or predestination?", side = ::futureSightPrepare)
+private val futureSight = Move("Future Sight", 120, 100, Type.PSYCHIC, MoveType.SPEC, false, 10, "Foresee an attack in the future. And execute it, since its your attack apparently. Self-fulfilling prophecy or predestination?", side = ::futureSightPrepare, delayed = true)
 private val recover = Move("Recover", -1, 100, Type.NORMAL, MoveType.STATUS, false, 5, "Spontaneously induce rapid cell growth to recover (he said the thing!) 50% of yout HP.", side = ::recoverHeal)
 private val hyperBeam = Move("Hyper Beam", 150, 90, Type.NORMAL, MoveType.SPEC, false, 5, "Fire a devastating laser at the opponent all anime-style. Requires one turn of recharge.", side = ::recharge1After)
 private val perishSong = Move("Perish Song", -1, 100, Type.NORMAL, MoveType.STATUS, false, 5, "Sing a malevolent song. In 3 turns, all who have heard it and are still afflicted with it will die on the spot.", side = ::perishSongPrepare, vocal = true)
