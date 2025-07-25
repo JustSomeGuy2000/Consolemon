@@ -1,9 +1,11 @@
 package jehr.experiments.pkmnbatsim3
 
 import kotlin.random.Random.Default as rng
-import kotlinx.serialization.*
-import java.io.*
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.io.FileWriter
 import java.util.Scanner
+import java.io.*
 
 object Env {
     lateinit var field: Field
@@ -12,23 +14,29 @@ object Env {
     private val menuHandlerMap: Map<Menus,() -> Unit> = mapOf(Menus.START to this.menuHandler::startMenuHandler)
     var menu: Menus = Menus.START
     var quit: Boolean = false
-    val settingsFile = File("data/settings.json")
+    val settingsFile = File("data/settings.txt")
+    val settingsWriter = FileWriter(this.settingsFile)
     val settings = loadSettings()
 
     fun loadSettings(): Settings {
         val settingsReader = Scanner(this.settingsFile)
+        var settingsString = ""
+        while (settingsReader.hasNext()) settingsString += settingsReader.nextLine()
+        settingsReader.close()
         //*github.com/Kotlin/kotlinx.serialization/blob/master/docs/basic-serialization.md#json-encoding
         return Settings(false)
     }
 
     fun updateSettings() {
-        val settingsWriter = FileWriter(this.settingsFile)
+        val newSettings = Json.encodeToString(settings)
+        this.settingsFile.writeText(newSettings)
     }
 
     fun startEnv() {
         while (!this.quit) {
             this.menuHandlerMap[this.menu]!!()
         }
+        this.updateSettings()
     }
 
     fun startGame() {
@@ -377,6 +385,7 @@ class Field() {
             if (nextTurn == null) println("Invalid input. Try again.\n")
         }
         Env.gameProgressing = false
+        Env.menu = Menus.START
     }
 }
 

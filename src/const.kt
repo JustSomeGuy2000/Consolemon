@@ -1,6 +1,6 @@
 package jehr.experiments.pkmnbatsim3
 
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.*
 
 /**Signature all audit responder functions should use. The first Pokemon is the attacker and the second is the defender. The Any? is an original value, which the function should modify and return.*/
 typealias auditFunc = (AuditData, AuditWrapper) -> Any?
@@ -130,6 +130,7 @@ fun kotlin.random.Random.randLessOrEqualDouble(lessThanOrEqual: Double, max: Dou
 
 @Serializable
 data class Settings(var verbose: Boolean)
+
 fun log(message: String, prefix: String = "LOG: ", postfix: String = "") {
     if (Env.settings.verbose) println("$prefix$message$postfix")
 }
